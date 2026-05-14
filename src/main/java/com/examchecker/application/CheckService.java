@@ -8,7 +8,9 @@ import com.examchecker.service.MathTextNormalizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
+import com.examchecker.infrastructure.ocr.OcrBundleParser;
+import com.examchecker.infrastructure.ocr.OcrBundleResult;
+import com.examchecker.infrastructure.ocr.SuspiciousCheckResult;
 import java.util.Map;
 
 @Service
@@ -19,34 +21,35 @@ public class CheckService {
     private final MathTextNormalizer mathTextNormalizer;
     private final ImageQualityService imageQualityService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final OcrBundleParser ocrBundleParser;
+
 
     public CheckService(
             OcrService ocrService,
             OpenAiClient openAiClient,
             MathTextNormalizer mathTextNormalizer,
-            ImageQualityService imageQualityService
+            ImageQualityService imageQualityService,
+            OcrBundleParser ocrBundleParser
     ) {
         this.ocrService = ocrService;
         this.openAiClient = openAiClient;
         this.mathTextNormalizer = mathTextNormalizer;
         this.imageQualityService = imageQualityService;
+        this.ocrBundleParser = ocrBundleParser;
     }
 
     public Map<String, Object> check(MultipartFile file) {
         try {
             ImageQualityReport imageQualityReport = imageQualityService.analyze(file);
 
-            String ocrJson = cleanJson(ocrService.extractText(file));
-            Map<String, Object> wrapper = objectMapper.readValue(ocrJson, Map.class);
+            String ocrJson = ocrService.extractText(file);
+            OcrBundleResult ocrBundle = ocrBundleParser.parse(ocrJson);
 
-            Map<String, Object> primary = (Map<String, Object>) wrapper.get("primary");
-            Map<String, Object> verification = (Map<String, Object>) wrapper.get("verification");
-            Map<String, Object> thresholdRead = (Map<String, Object>) wrapper.get("thresholdRead");
-            Map<String, Object> suspiciousCheck = (Map<String, Object>) wrapper.get("suspiciousCheck");
+            String primaryText = ocrBundle.primary().rawText();
+            String verificationText = ocrBundle.verification().rawText();
+            String thresholdText = ocrBundle.thresholdRead().rawText();
 
-            String primaryText = safe(primary.get("rawText")).toString();
-            String verificationText = safe(verification.get("rawText")).toString();
-            String thresholdText = safe(thresholdRead.get("rawText")).toString();
+            SuspiciousCheckResult suspiciousCheck = ocrBundle.suspiciousCheck();
 
             String normalizedPrimaryText = mathTextNormalizer.normalize(primaryText);
             String normalizedVerificationText = mathTextNormalizer.normalize(verificationText);
@@ -56,15 +59,14 @@ public class CheckService {
             String verificationOperators = extractOperators(normalizedVerificationText);
             String thresholdOperators = extractOperators(normalizedThresholdText);
 
-            boolean primaryReadable = Boolean.TRUE.equals(primary.get("isClearlyReadable"));
-            boolean verificationReadable = Boolean.TRUE.equals(verification.get("isClearlyReadable"));
+            boolean primaryReadable = ocrBundle.primary().clearlyReadable();
+            boolean verificationReadable = ocrBundle.verification().clearlyReadable();
 
             boolean sameText = normalizedPrimaryText.equals(normalizedVerificationText);
             boolean sameOperators = primaryOperators.equals(verificationOperators);
             boolean thresholdOperatorsMatch = primaryOperators.equals(thresholdOperators);
 
-            boolean suspiciousOriginal = suspiciousCheck != null
-                    && Boolean.TRUE.equals(suspiciousCheck.get("suspicious"));
+            boolean suspiciousOriginal = suspiciousCheck.suspicious();
 
             boolean bothUnreadable =
                     !primaryReadable && !verificationReadable;
@@ -132,8 +134,7 @@ public class CheckService {
                             confidenceGateTriggered
                     )),
 
-                    Map.entry("suggestedRawText",
-                            suspiciousCheck == null ? "" : safe(suspiciousCheck.get("suggestedRawText"))),
+                    Map.entry("suggestedRawText", safe(suspiciousCheck.suggestedRawText())),
 
                     Map.entry("expression", safe(analysis.get("expression"))),
                     Map.entry("expected", safe(analysis.get("expected"))),
@@ -167,7 +168,7 @@ public class CheckService {
             boolean sameText,
             boolean sameOperators,
             boolean thresholdOperatorsMatch,
-            Map<String, Object> suspiciousCheck,
+            SuspiciousCheckResult suspiciousCheck,
             boolean confidenceGateTriggered
     ) {
         StringBuilder reason = new StringBuilder();
@@ -204,9 +205,9 @@ public class CheckService {
             reason.append("Exercise is mathematically incorrect and contains a risky operator. ");
         }
 
-        if (suspiciousCheck != null && Boolean.TRUE.equals(suspiciousCheck.get("suspicious"))) {
+        if (suspiciousCheck != null && suspiciousCheck.suspicious()) {
             reason.append("Suspicious OCR check: ")
-                    .append(safe(suspiciousCheck.get("reason")))
+                    .append(safe(suspiciousCheck.reason()))
                     .append(". ");
         }
 
