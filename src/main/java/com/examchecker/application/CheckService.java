@@ -12,11 +12,14 @@ import com.examchecker.infrastructure.ocr.OcrBundleParser;
 import com.examchecker.infrastructure.ocr.OcrBundleResult;
 import com.examchecker.infrastructure.ocr.SuspiciousCheckResult;
 import java.util.Map;
+import com.examchecker.infrastructure.ocr.MultiEngineOcrService;
+import com.examchecker.infrastructure.ocr.OcrEngineBundleResult;
+import java.util.List;
 
 @Service
 public class CheckService {
 
-    private final OcrService ocrService;
+    private final MultiEngineOcrService multiEngineOcrService;
     private final OpenAiClient openAiClient;
     private final MathTextNormalizer mathTextNormalizer;
     private final ImageQualityService imageQualityService;
@@ -25,13 +28,13 @@ public class CheckService {
 
 
     public CheckService(
-            OcrService ocrService,
+            MultiEngineOcrService multiEngineOcrService,
             OpenAiClient openAiClient,
             MathTextNormalizer mathTextNormalizer,
             ImageQualityService imageQualityService,
             OcrBundleParser ocrBundleParser
     ) {
-        this.ocrService = ocrService;
+        this.multiEngineOcrService = multiEngineOcrService;
         this.openAiClient = openAiClient;
         this.mathTextNormalizer = mathTextNormalizer;
         this.imageQualityService = imageQualityService;
@@ -42,8 +45,19 @@ public class CheckService {
         try {
             ImageQualityReport imageQualityReport = imageQualityService.analyze(file);
 
-            String ocrJson = ocrService.extractText(file);
-            OcrBundleResult ocrBundle = ocrBundleParser.parse(ocrJson);
+            List<OcrEngineBundleResult> engineResults =
+                    multiEngineOcrService.extractWithAllEngines(file);
+
+            OcrEngineBundleResult primaryEngineResult = engineResults.get(0);
+
+            if (primaryEngineResult.failed()) {
+                throw new RuntimeException(
+                        "Primary OCR engine failed: " + primaryEngineResult.failureReason()
+                );
+            }
+
+
+            OcrBundleResult ocrBundle = primaryEngineResult.bundle();
 
             String primaryText = ocrBundle.primary().rawText();
             String verificationText = ocrBundle.verification().rawText();
