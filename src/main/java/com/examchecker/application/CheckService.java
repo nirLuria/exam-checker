@@ -79,7 +79,8 @@ public class CheckService {
             boolean sameText = normalizedPrimaryText.equals(normalizedVerificationText);
             boolean sameOperators = primaryOperators.equals(verificationOperators);
             boolean thresholdOperatorsMatch = primaryOperators.equals(thresholdOperators);
-
+            boolean suspiciousFlatExpression =
+                    looksLikeCollapsedExpression(normalizedPrimaryText);
             boolean suspiciousOriginal = suspiciousCheck.suspicious();
 
             boolean bothUnreadable =
@@ -95,7 +96,8 @@ public class CheckService {
                     severeImageQualityIssue
                             || bothUnreadable
                             || !sameOperators
-                            || !thresholdOperatorsMatch;
+                            || !thresholdOperatorsMatch
+                            || suspiciousFlatExpression;
 
             String analysisJson = cleanJson(openAiClient.analyzeExercise(primaryText));
             Map<String, Object> analysis;
@@ -136,7 +138,7 @@ public class CheckService {
                     Map.entry("isClearlyReadable", primaryReadable && verificationReadable),
                     Map.entry("needsTeacherReview", finalNeedsReview),
                     Map.entry("suspicious", finalNeedsReview || suspiciousOriginal),
-
+                    Map.entry("suspiciousFlatExpression", suspiciousFlatExpression),
                     Map.entry("suspiciousReason", buildSuspiciousReason(
                             imageQualityReport,
                             primaryReadable,
@@ -144,6 +146,7 @@ public class CheckService {
                             sameText,
                             sameOperators,
                             thresholdOperatorsMatch,
+                            suspiciousFlatExpression,
                             suspiciousCheck,
                             confidenceGateTriggered
                     )),
@@ -182,9 +185,11 @@ public class CheckService {
             boolean sameText,
             boolean sameOperators,
             boolean thresholdOperatorsMatch,
+            boolean suspiciousFlatExpression,
             SuspiciousCheckResult suspiciousCheck,
             boolean confidenceGateTriggered
-    ) {
+    )
+    {
         StringBuilder reason = new StringBuilder();
 
         boolean severeImageQualityIssue =
@@ -213,6 +218,9 @@ public class CheckService {
 
         if (!thresholdOperatorsMatch) {
             reason.append("Operator mismatch between original/sharpened and threshold OCR. ");
+        }
+        if (suspiciousFlatExpression) {
+            reason.append("Expression looks collapsed: equals sign exists, but left side is only a long number with no operator. ");
         }
 
         if (confidenceGateTriggered) {
@@ -258,5 +266,15 @@ public class CheckService {
                 || operators.contains("x")
                 || operators.contains("-")
                 || operators.contains("²");
+    }
+
+    private boolean looksLikeCollapsedExpression(String text) {
+        if (text == null) {
+            return false;
+        }
+
+        String compact = text.replaceAll("\\s+", "");
+
+        return compact.matches("\\d{3,}=\\d+");
     }
 }

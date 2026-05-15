@@ -13,10 +13,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.security.MessageDigest;
 
 @SpringBootTest
 public class EvaluationTest {
@@ -86,6 +86,9 @@ public class EvaluationTest {
                     ? null
                     : Boolean.TRUE.equals(result.get("correct"));
 
+            boolean suspiciousFlatExpression =
+                    Boolean.TRUE.equals(result.get("suspiciousFlatExpression"));
+
             boolean mathMatches = actualCorrect != null && actualCorrect.equals(expectedCorrect);
 
             if (mathMatches) {
@@ -123,6 +126,7 @@ public class EvaluationTest {
                     safe(result.get("suspiciousReason")),
                     result.get("imageQualityReport"),
                     Boolean.TRUE.equals(result.get("thresholdOperatorsMatch")),
+                    suspiciousFlatExpression,
                     expectedCorrect,
                     actualCorrect,
                     safe(result.get("expression")),
@@ -134,10 +138,12 @@ public class EvaluationTest {
             );
 
             caseLogs.add(caseLog);
+
             System.out.println("Duration: " + caseDurationMs + " ms");
 
             appendCaseToTxtLog(txtLog, caseLog);
             txtLog.append("Duration: ").append(caseDurationMs).append(" ms\n");
+
             printCase(caseLog);
         }
 
@@ -157,10 +163,13 @@ public class EvaluationTest {
         FullEvaluationLog fullLog = new FullEvaluationLog(summaryLog, caseLogs);
 
         long evaluationDurationMs = System.currentTimeMillis() - evaluationStart;
+
         appendSummaryToTxtLog(txtLog, summaryLog);
         printSummary(summaryLog);
+
         System.out.println("Total duration: " + evaluationDurationMs + " ms");
         System.out.println("Average per case: " + (total == 0 ? 0 : evaluationDurationMs / total) + " ms");
+
         txtLog.append("Total duration: ").append(evaluationDurationMs).append(" ms\n");
         txtLog.append("Average per case: ")
                 .append(total == 0 ? 0 : evaluationDurationMs / total)
@@ -234,6 +243,7 @@ public class EvaluationTest {
         txtLog.append("Reason: ").append(log.reason()).append("\n");
         txtLog.append("Image quality: ").append(log.imageQuality()).append("\n");
         txtLog.append("Threshold operators match: ").append(log.thresholdOperatorsMatch()).append("\n");
+        txtLog.append("Suspicious flat expression: ").append(log.suspiciousFlatExpression()).append("\n");
         txtLog.append("Expected correct: ").append(log.expectedCorrect()).append("\n");
         txtLog.append("Actual correct:   ").append(log.actualCorrect()).append("\n");
         txtLog.append("Expression: ").append(log.expression()).append("\n");
@@ -254,6 +264,7 @@ public class EvaluationTest {
         System.out.println("Reason: " + log.reason());
         System.out.println("Image quality: " + log.imageQuality());
         System.out.println("Threshold operators match: " + log.thresholdOperatorsMatch());
+        System.out.println("Suspicious flat expression: " + log.suspiciousFlatExpression());
         System.out.println("Expected correct: " + log.expectedCorrect());
         System.out.println("Actual correct:   " + log.actualCorrect());
         System.out.println("Expression: " + log.expression());
@@ -285,7 +296,6 @@ public class EvaluationTest {
     }
 
     private void printSummary(EvaluationSummaryLog summary) {
-
         System.out.println("\n===== OCR EVALUATION SUMMARY =====");
         System.out.println("Total: " + summary.total());
         System.out.println("Exact OCR matches: " + summary.exactOcrMatches() + "/" + summary.total()
@@ -324,6 +334,7 @@ public class EvaluationTest {
             String reason,
             Object imageQuality,
             boolean thresholdOperatorsMatch,
+            boolean suspiciousFlatExpression,
             Boolean expectedCorrect,
             Boolean actualCorrect,
             String expression,
