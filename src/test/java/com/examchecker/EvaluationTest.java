@@ -134,7 +134,9 @@ public class EvaluationTest {
                     result.get("studentAnswer"),
                     safe(result.get("confidenceGateReason")),
                     mathMatches,
-                    confidentMistake
+                    confidentMistake,
+                    safe(result.get("ocrEngineSummary")),
+                    safe(result.get("ocrConsensusReason"))
             );
 
             caseLogs.add(caseLog);
@@ -252,6 +254,8 @@ public class EvaluationTest {
         txtLog.append("Confidence gate: ").append(log.confidenceGate()).append("\n");
         txtLog.append("Math match: ").append(log.mathMatch()).append("\n");
         txtLog.append("Confident mistake: ").append(log.confidentMistake()).append("\n");
+        txtLog.append("OCR engines: ").append(log.ocrEngineSummary()).append("\n");
+        txtLog.append("OCR consensus reason: ").append(log.ocrConsensusReason()).append("\n");
         txtLog.append("--------------------------------\n");
     }
 
@@ -273,6 +277,8 @@ public class EvaluationTest {
         System.out.println("Confidence gate: " + log.confidenceGate());
         System.out.println("Math match: " + log.mathMatch());
         System.out.println("Confident mistake: " + log.confidentMistake());
+        System.out.println("OCR engines: " + log.ocrEngineSummary());
+        System.out.println("OCR consensus reason: " + log.ocrConsensusReason());
         System.out.println("--------------------------------");
     }
 
@@ -342,7 +348,9 @@ public class EvaluationTest {
             Object studentAnswer,
             String confidenceGate,
             boolean mathMatch,
-            boolean confidentMistake
+            boolean confidentMistake,
+            String ocrEngineSummary,
+            String ocrConsensusReason
     ) {}
 
     record EvaluationSummaryLog(

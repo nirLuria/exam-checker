@@ -15,6 +15,8 @@ import java.util.Map;
 import com.examchecker.infrastructure.ocr.MultiEngineOcrService;
 import com.examchecker.infrastructure.ocr.OcrEngineBundleResult;
 import java.util.List;
+import com.examchecker.infrastructure.ocr.OcrConsensusResult;
+import com.examchecker.infrastructure.ocr.OcrConsensusService;
 
 @Service
 public class CheckService {
@@ -25,20 +27,22 @@ public class CheckService {
     private final ImageQualityService imageQualityService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final OcrBundleParser ocrBundleParser;
-
+    private final OcrConsensusService ocrConsensusService;
 
     public CheckService(
             MultiEngineOcrService multiEngineOcrService,
             OpenAiClient openAiClient,
             MathTextNormalizer mathTextNormalizer,
             ImageQualityService imageQualityService,
-            OcrBundleParser ocrBundleParser
+            OcrBundleParser ocrBundleParser,
+            OcrConsensusService ocrConsensusService
     ) {
         this.multiEngineOcrService = multiEngineOcrService;
         this.openAiClient = openAiClient;
         this.mathTextNormalizer = mathTextNormalizer;
         this.imageQualityService = imageQualityService;
         this.ocrBundleParser = ocrBundleParser;
+        this.ocrConsensusService = ocrConsensusService;
     }
 
     public Map<String, Object> check(MultipartFile file) {
@@ -48,16 +52,17 @@ public class CheckService {
             List<OcrEngineBundleResult> engineResults =
                     multiEngineOcrService.extractWithAllEngines(file);
 
-            OcrEngineBundleResult primaryEngineResult = engineResults.get(0);
+            OcrConsensusResult consensus =
+                    ocrConsensusService.decide(engineResults);
+            String ocrEngineSummary = buildOcrEngineSummary(engineResults);
 
-            if (primaryEngineResult.failed()) {
+            if (consensus.selectedBundle() == null) {
                 throw new RuntimeException(
-                        "Primary OCR engine failed: " + primaryEngineResult.failureReason()
+                        "OCR consensus failed: " + consensus.reason()
                 );
             }
 
-
-            OcrBundleResult ocrBundle = primaryEngineResult.bundle();
+            OcrBundleResult ocrBundle = consensus.selectedBundle();
 
             String primaryText = ocrBundle.primary().rawText();
             String verificationText = ocrBundle.verification().rawText();
@@ -93,7 +98,8 @@ public class CheckService {
                             && imageQualityReport.contrastScore() < 25);
 
             boolean needsReview =
-                    severeImageQualityIssue
+                    consensus.needsReview()
+                            || severeImageQualityIssue
                             || bothUnreadable
                             || !sameOperators
                             || !thresholdOperatorsMatch
@@ -139,6 +145,8 @@ public class CheckService {
                     Map.entry("needsTeacherReview", finalNeedsReview),
                     Map.entry("suspicious", finalNeedsReview || suspiciousOriginal),
                     Map.entry("suspiciousFlatExpression", suspiciousFlatExpression),
+                    Map.entry("ocrEngineSummary", ocrEngineSummary),
+                    Map.entry("ocrConsensusReason", safe(consensus.reason())),
                     Map.entry("suspiciousReason", buildSuspiciousReason(
                             imageQualityReport,
                             primaryReadable,
@@ -176,6 +184,30 @@ public class CheckService {
         } catch (Exception e) {
             throw new RuntimeException("Failed to check exercise", e);
         }
+    }
+
+    private String buildOcrEngineSummary(List<OcrEngineBundleResult> engineResults) {
+        if (engineResults == null || engineResults.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder summary = new StringBuilder();
+
+        for (OcrEngineBundleResult result : engineResults) {
+            summary.append(result.engineName())
+                    .append(": ");
+
+            if (result.failed()) {
+                summary.append("FAILED - ")
+                        .append(safe(result.failureReason()));
+            } else {
+                summary.append(safe(result.bundle().primary().rawText()));
+            }
+
+            summary.append(" | ");
+        }
+
+        return summary.toString().trim();
     }
 
     private String buildSuspiciousReason(
