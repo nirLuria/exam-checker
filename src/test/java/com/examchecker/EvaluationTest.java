@@ -46,15 +46,19 @@ public class EvaluationTest {
         int autoResolved = 0;
         int confidentMistakes = 0;
         int correctMathMatches = 0;
+        int engineAgreement = 0;
+        int engineDisagreement = 0;
 
         List<EvaluationCaseLog> caseLogs = new ArrayList<>();
         StringBuilder txtLog = new StringBuilder();
 
         txtLog.append("===== OCR EVALUATION START =====\n\n");
         System.out.println("\n===== OCR EVALUATION START =====\n");
+
         long evaluationStart = System.currentTimeMillis();
 
         for (Map<String, Object> expected : expectedResults) {
+
             long caseStart = System.currentTimeMillis();
 
             String fileName = expected.get("file").toString();
@@ -62,6 +66,9 @@ public class EvaluationTest {
 
             Boolean expectedCorrect =
                     Boolean.valueOf(expected.get("expectedCorrect").toString());
+
+            System.out.println("\n--- Running case: " + fileName + " ---");
+            txtLog.append("\n--- Running case: ").append(fileName).append(" ---\n");
 
             InputStream imageStream =
                     getClass().getResourceAsStream("/evaluation/images/" + fileName);
@@ -78,10 +85,14 @@ public class EvaluationTest {
             );
 
             Map<String, Object> result = checkWithCache(fileName, multipartFile);
+
             long caseDurationMs = System.currentTimeMillis() - caseStart;
 
             String actualRawText = safe(result.get("rawText"));
-            boolean actualNeedsReview = Boolean.TRUE.equals(result.get("needsTeacherReview"));
+
+            boolean actualNeedsReview =
+                    Boolean.TRUE.equals(result.get("needsTeacherReview"));
+
             Boolean actualCorrect = result.get("correct") == null
                     ? null
                     : Boolean.TRUE.equals(result.get("correct"));
@@ -89,7 +100,8 @@ public class EvaluationTest {
             boolean suspiciousFlatExpression =
                     Boolean.TRUE.equals(result.get("suspiciousFlatExpression"));
 
-            boolean mathMatches = actualCorrect != null && actualCorrect.equals(expectedCorrect);
+            boolean mathMatches =
+                    actualCorrect != null && actualCorrect.equals(expectedCorrect);
 
             if (mathMatches) {
                 correctMathMatches++;
@@ -100,6 +112,19 @@ public class EvaluationTest {
 
             boolean confidentMistake =
                     !actualNeedsReview && !textMatches;
+            String engineSummary = safe(result.get("ocrEngineSummary"));
+
+            boolean enginesAgree =
+                    engineSummary.contains("GEMINI:")
+                            && engineSummary.contains("OPENAI:")
+                            && extractGeminiText(engineSummary)
+                            .equals(normalizeForComparison(extractOpenAiText(engineSummary)));
+
+            if (enginesAgree) {
+                engineAgreement++;
+            } else {
+                engineDisagreement++;
+            }
 
             total++;
 
@@ -141,12 +166,12 @@ public class EvaluationTest {
 
             caseLogs.add(caseLog);
 
+            printCase(caseLog);
             System.out.println("Duration: " + caseDurationMs + " ms");
 
             appendCaseToTxtLog(txtLog, caseLog);
             txtLog.append("Duration: ").append(caseDurationMs).append(" ms\n");
-
-            printCase(caseLog);
+            txtLog.append("--------------------------------\n");
         }
 
         EvaluationSummaryLog summaryLog = new EvaluationSummaryLog(
@@ -159,7 +184,11 @@ public class EvaluationTest {
                 percentNumber(autoResolved, total),
                 confidentMistakes,
                 correctMathMatches,
-                percentNumber(correctMathMatches, total)
+                percentNumber(correctMathMatches, total),
+                engineAgreement,
+                percentNumber(engineAgreement, total),
+                engineDisagreement,
+                percentNumber(engineDisagreement, total)
         );
 
         FullEvaluationLog fullLog = new FullEvaluationLog(summaryLog, caseLogs);
@@ -211,13 +240,18 @@ public class EvaluationTest {
         Path cacheFile = cacheDir.resolve(safeFileName + "-" + hash + ".json");
 
         if (Files.exists(cacheFile)) {
+            System.out.println("CACHE HIT: " + fileName);
+
             return objectMapper.readValue(
                     Files.readString(cacheFile, StandardCharsets.UTF_8),
                     new TypeReference<Map<String, Object>>() {}
             );
         }
 
+        System.out.println("CACHE MISS: " + fileName);
+
         Map<String, Object> result = checkService.check(multipartFile);
+
         objectMapper.writeValue(cacheFile.toFile(), result);
 
         return result;
@@ -234,6 +268,43 @@ public class EvaluationTest {
         }
 
         return sb.toString();
+    }
+
+    private String extractGeminiText(String summary) {
+        try {
+            int start = summary.indexOf("GEMINI:");
+            int end = summary.indexOf("| OPENAI:");
+
+            if (start == -1 || end == -1) {
+                return "";
+            }
+
+            return normalizeForComparison(
+                    summary.substring(start + "GEMINI:".length(), end).trim()
+            );
+
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private String extractOpenAiText(String summary) {
+        try {
+            int start = summary.indexOf("OPENAI:");
+
+            if (start == -1) {
+                return "";
+            }
+
+            return normalizeForComparison(
+                    summary.substring(start + "OPENAI:".length())
+                            .replace("|", "")
+                            .trim()
+            );
+
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     private void appendCaseToTxtLog(StringBuilder txtLog, EvaluationCaseLog log) {
@@ -298,6 +369,13 @@ public class EvaluationTest {
         txtLog.append("Math correctness matches: ")
                 .append(summary.mathCorrectnessMatches()).append("/").append(summary.total())
                 .append(" = ").append(summary.mathCorrectnessMatchesPercent()).append("%\n");
+        txtLog.append("Engine agreement: ")
+                .append(summary.engineAgreement()).append("/").append(summary.total())
+                .append(" = ").append(summary.engineAgreementPercent()).append("%\n");
+
+        txtLog.append("Engine disagreement: ")
+                .append(summary.engineDisagreement()).append("/").append(summary.total())
+                .append(" = ").append(summary.engineDisagreementPercent()).append("%\n");
         txtLog.append("==================================\n");
     }
 
@@ -313,6 +391,13 @@ public class EvaluationTest {
         System.out.println("Confident mistakes: " + summary.confidentMistakes());
         System.out.println("Math correctness matches: " + summary.mathCorrectnessMatches() + "/" + summary.total()
                 + " = " + summary.mathCorrectnessMatchesPercent() + "%");
+        System.out.println("Engine agreement: " + summary.engineAgreement()
+                + "/" + summary.total()
+                + " = " + summary.engineAgreementPercent() + "%");
+
+        System.out.println("Engine disagreement: " + summary.engineDisagreement()
+                + "/" + summary.total()
+                + " = " + summary.engineDisagreementPercent() + "%");
         System.out.println("==================================\n");
     }
 
@@ -363,7 +448,11 @@ public class EvaluationTest {
             double autoResolvedPercent,
             int confidentMistakes,
             int mathCorrectnessMatches,
-            double mathCorrectnessMatchesPercent
+            double mathCorrectnessMatchesPercent,
+            int engineAgreement,
+            double engineAgreementPercent,
+            int engineDisagreement,
+            double engineDisagreementPercent
     ) {}
 
     record FullEvaluationLog(
