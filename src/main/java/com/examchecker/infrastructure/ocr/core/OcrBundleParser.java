@@ -1,4 +1,4 @@
-package com.examchecker.infrastructure.ocr;
+package com.examchecker.infrastructure.ocr.core;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;

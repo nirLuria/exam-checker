@@ -2,21 +2,20 @@ package com.examchecker.application;
 
 import com.examchecker.image.ImageQualityReport;
 import com.examchecker.image.ImageQualityService;
-import com.examchecker.infrastructure.OcrService;
 import com.examchecker.infrastructure.OpenAiClient;
 import com.examchecker.service.MathTextNormalizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import com.examchecker.infrastructure.ocr.OcrBundleParser;
-import com.examchecker.infrastructure.ocr.OcrBundleResult;
-import com.examchecker.infrastructure.ocr.SuspiciousCheckResult;
+import com.examchecker.infrastructure.ocr.core.OcrBundleParser;
+import com.examchecker.infrastructure.ocr.core.OcrBundleResult;
+import com.examchecker.infrastructure.ocr.core.SuspiciousCheckResult;
 import java.util.Map;
-import com.examchecker.infrastructure.ocr.MultiEngineOcrService;
-import com.examchecker.infrastructure.ocr.OcrEngineBundleResult;
+import com.examchecker.infrastructure.ocr.core.MultiEngineOcrService;
+import com.examchecker.infrastructure.ocr.core.OcrEngineBundleResult;
 import java.util.List;
-import com.examchecker.infrastructure.ocr.OcrConsensusResult;
-import com.examchecker.infrastructure.ocr.OcrConsensusService;
+import com.examchecker.infrastructure.ocr.core.OcrConsensusResult;
+import com.examchecker.infrastructure.ocr.core.OcrConsensusService;
 
 @Service
 public class CheckService {
