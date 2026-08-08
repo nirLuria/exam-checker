@@ -1,41 +1,41 @@
 package com.examchecker.infrastructure.ocr.core;
 
-public record OcrEngineBundleResult(
+public record OcrEngineResult(
         OcrEngineName engineName,
         OcrEngineStatus status,
         OcrEngineFailureType failureType,
-        OcrBundleResult bundle,
-        String failureReason,
+        OcrBundleResult bundleResult,
+        String errorMessage,
         long durationMs
 ) {
 
-    public static OcrEngineBundleResult success(
+    public static OcrEngineResult success(
             OcrEngineName engineName,
-            OcrBundleResult bundle,
+            OcrBundleResult bundleResult,
             long durationMs
     ) {
-        return new OcrEngineBundleResult(
+        return new OcrEngineResult(
                 engineName,
                 OcrEngineStatus.SUCCESS,
                 OcrEngineFailureType.NONE,
-                bundle,
-                "",
+                bundleResult,
+                null,
                 durationMs
         );
     }
 
-    public static OcrEngineBundleResult failed(
+    public static OcrEngineResult failed(
             OcrEngineName engineName,
             OcrEngineFailureType failureType,
-            String failureReason,
+            String errorMessage,
             long durationMs
     ) {
-        return new OcrEngineBundleResult(
+        return new OcrEngineResult(
                 engineName,
                 OcrEngineStatus.FAILED,
                 failureType,
                 null,
-                failureReason,
+                errorMessage,
                 durationMs
         );
     }

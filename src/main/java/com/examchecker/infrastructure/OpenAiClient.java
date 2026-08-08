@@ -19,49 +19,75 @@ public class OpenAiClient {
     // ================= OCR PROMPTS =================
 
     private static final String PRIMARY_PROMPT = """
-            Your only task is to transcribe the handwritten math exercise from the image.
+        Your only task is to transcribe the main handwritten math exercise from the image.
 
-            Copy exactly what is written.
-            Do not solve.
-            Do not calculate.
-            Do not correct mistakes.
-            If any digit or symbol is unclear, write [?].
-            If anything is unclear, set isClearlyReadable=false.
+        Copy exactly the relevant exercise.
+        Do not solve.
+        Do not calculate.
+        Do not correct mathematical mistakes.
 
-            Digits like 1, 7, 8, 9 can look similar in handwriting.
-            If a digit could reasonably be another digit, do not assume it is correct.
-            Set isClearlyReadable=false.
+        Important:
+        The image may contain parts of another exercise above or below.
+        If there is one clearly centered / dominant exercise, transcribe only that exercise.
+        Ignore partial neighboring exercises that are cut off or only partly visible.
 
-            Return raw JSON only:
-            {
-              "rawText": "...",
-              "isClearlyReadable": true
-            }
-            """;
+        Very important for handwritten arithmetic:
+        A handwritten plus sign (+) may look like:
+        - a small cross
+        - a vertical stroke with a short horizontal stroke
+        - a division-like mark
+        - a fraction-like mark such as 1/6 or 1/8
+        - a strange symbol between two numbers
+
+        If the symbol between two numbers looks like an arithmetic operator and could reasonably be '+',
+        prefer '+' only when the surrounding exercise structure supports simple addition.
+        If still uncertain, write [?] and set isClearlyReadable=false.
+
+        Digits like 1, 7, 8, 9 can look similar in handwriting.
+        If a digit could reasonably be another digit, do not assume it is correct.
+        Use [?] and set isClearlyReadable=false.
+
+        Return raw JSON only:
+        {
+          "rawText": "...",
+          "isClearlyReadable": true
+        }
+        """;
 
     private static final String VERIFICATION_PROMPT = """
-            Carefully re-read the handwritten math exercise from the image.
+        Carefully re-read the main handwritten math exercise from the image.
 
-            Focus on:
-            - missing leading digits (17 vs 7)
-            - similar digits (1, 7, 9, 3)
-            - + vs -
-            - the result after =
+        Copy exactly the relevant exercise.
+        Ignore partial neighboring exercises above or below if they are cut off or not the main exercise.
 
-            Copy exactly what is written.
-            If any part is uncertain, use [?] and set isClearlyReadable=false.
-            Do not guess.
+        Focus on:
+        - missing leading digits (17 vs 7)
+        - similar digits (1, 7, 9, 3, 8)
+        - + vs - vs ÷ vs fraction-like marks
+        - the result after =
 
-            Double-check each digit carefully.
-            Especially verify that 8 is not misread as 1 or 3.
-            If unsure about any digit, mark isClearlyReadable=false.
-            
-            Return raw JSON only:
-            {
-              "rawText": "...",
-              "isClearlyReadable": true
-            }
-            """;
+        Very important:
+        In handwritten elementary arithmetic, a plus sign (+) is often messy.
+        It may be misread as:
+        - division
+        - a fraction
+        - 1/6, 1/8
+        - ⊥
+        - a vertical line with a short horizontal stroke
+
+        Before reading a symbol between two numbers as a fraction or division,
+        check whether it is more likely a messy plus sign in a simple arithmetic exercise.
+
+        If uncertain, use [?] and set isClearlyReadable=false.
+        Do not guess.
+        Do not solve.
+
+        Return raw JSON only:
+        {
+          "rawText": "...",
+          "isClearlyReadable": true
+        }
+        """;
 
     // ================= ANALYSIS PROMPT =================
 

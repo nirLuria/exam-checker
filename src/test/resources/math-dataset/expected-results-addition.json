@@ -1,0 +1,77 @@
+[
+  {
+    "file": "add1.jpg",
+    "expectedRawText": "1+7=8",
+    "expectedCorrect": true
+  },
+  {
+    "file": "add2.jpg",
+    "expectedRawText": "2+7=9",
+    "expectedCorrect": true
+  },
+  {
+    "file": "add3.jpg",
+    "expectedRawText": "3+8=11",
+    "expectedCorrect": true
+  },
+  {
+    "file": "add4.jpg",
+    "expectedRawText": " 4+8=12",
+    "expectedCorrect": true
+  },
+  {
+    "file": "add5.jpg",
+    "expectedRawText": "5+9=14",
+    "expectedCorrect": true
+  },
+  {
+    "file": "add6.jpg",
+    "expectedRawText": "6+9=15",
+    "expectedCorrect": true
+  },
+  {
+    "file": "add7.jpg",
+    "expectedRawText": "7 +9=16",
+    "expectedCorrect": true
+  },
+  {
+    "file": "add8.jpg",
+    "expectedRawText": "8+6=86",
+    "expectedCorrect": false
+  },
+  {
+    "file": "add9.jpg",
+    "expectedRawText": "9+6=51",
+    "expectedCorrect": false
+  },
+  {
+    "file": "add10.jpg",
+    "expectedRawText": "10+6=13",
+    "expectedCorrect": true
+  },
+  {
+    "file": "add11.jpg",
+    "expectedRawText": "11+6=24",
+    "expectedCorrect": false
+  },
+  {
+    "file": "add12.jpg",
+    "expectedRawText": "2+3=35",
+    "expectedCorrect": false
+  },
+  {
+    "file": "add13.jpg",
+    "expectedRawText": "13+5=26",
+    "expectedCorrect": false
+  },
+  {
+    "file": "add14.jpg",
+    "expectedRawText": "14+2=87",
+    "expectedCorrect": false
+  },
+  {
+    "file": "add15.jpg",
+    "expectedRawText": "15+4=99",
+    "expectedCorrect": false
+  }
+]
