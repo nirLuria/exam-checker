@@ -91,8 +91,7 @@ public class GeminiOcrService {
             return extractTextFromGeminiResponse(response);
 
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Gemini OCR failed: " + e.getMessage(), e);
+            throw new RuntimeException("Gemini OCR failed: " , e);
         }
     }
 

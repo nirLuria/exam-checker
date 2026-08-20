@@ -21,6 +21,7 @@
 
     <dependencies>
 
+        <!-- google-cloud-vision removed: Google Vision integration removed -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>

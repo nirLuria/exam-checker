@@ -53,3 +53,16 @@ application-local.yml
 Thumbs.db
 
 .idea/
+
+
+# Local configuration
+.env.*
+!.env.example
+application-local.properties
+
+# API and cloud credentials
+credentials/
+secrets/
+*credentials*.json
+*service-account*.json
+googlevision.json

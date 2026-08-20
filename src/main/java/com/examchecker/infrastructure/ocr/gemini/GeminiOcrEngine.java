@@ -28,9 +28,7 @@ public class GeminiOcrEngine implements OcrEngine {
 
     @Override
     public OcrBundleResult extract(MultipartFile image) {
-
         String rawResponse = geminiOcrService.extractText(image);
-
         return ocrBundleParser.parse(rawResponse);
     }
 }

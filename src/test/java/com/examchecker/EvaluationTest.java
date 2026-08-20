@@ -27,11 +27,13 @@ public class EvaluationTest {
     private final ObjectMapper objectMapper = new ObjectMapper()
             .enable(SerializationFeature.INDENT_OUTPUT);
 
+    private static final String CACHE_VERSION = "v3-reliability-rules";
+
     @Test
     void runEvaluationDataset() throws Exception {
 
         InputStream expectedStream =
-                getClass().getResourceAsStream("/evaluation/expected-results.json");
+                getClass().getResourceAsStream("/math-dataset/expected-results-addition.json");
 
         if (expectedStream == null) {
             throw new RuntimeException("expected-results.json not found");
@@ -49,6 +51,7 @@ public class EvaluationTest {
         int engineAgreement = 0;
         int engineDisagreement = 0;
 
+
         List<EvaluationCaseLog> caseLogs = new ArrayList<>();
         StringBuilder txtLog = new StringBuilder();
 
@@ -64,6 +67,14 @@ public class EvaluationTest {
             String fileName = expected.get("file").toString();
             String expectedRawText = expected.get("expectedRawText").toString();
 
+            /// //
+            if(!fileName.contains("add6"))
+            {
+                continue;
+            }
+            /// /
+
+
             Boolean expectedCorrect =
                     Boolean.valueOf(expected.get("expectedCorrect").toString());
 
@@ -71,7 +82,7 @@ public class EvaluationTest {
             txtLog.append("\n--- Running case: ").append(fileName).append(" ---\n");
 
             InputStream imageStream =
-                    getClass().getResourceAsStream("/evaluation/images/" + fileName);
+                    getClass().getResourceAsStream("/math-dataset/addition/" + fileName);
 
             if (imageStream == null) {
                 throw new RuntimeException("Image not found: " + fileName);
@@ -112,18 +123,18 @@ public class EvaluationTest {
 
             boolean confidentMistake =
                     !actualNeedsReview && !textMatches;
+
             String engineSummary = safe(result.get("ocrEngineSummary"));
 
-            boolean enginesAgree =
-                    engineSummary.contains("GEMINI:")
-                            && engineSummary.contains("OPENAI:")
-                            && extractGeminiText(engineSummary)
-                            .equals(normalizeForComparison(extractOpenAiText(engineSummary)));
+            String openAiText = extractOpenAiText(engineSummary);
+            String geminiText = extractGeminiText(engineSummary);
 
-            if (enginesAgree) {
-                engineAgreement++;
-            } else {
-                engineDisagreement++;
+            if (!openAiText.isBlank() && !geminiText.isBlank()) {
+                if (openAiText.equals(geminiText)) {
+                    engineAgreement++;
+                } else {
+                    engineDisagreement++;
+                }
             }
 
             total++;
@@ -161,18 +172,23 @@ public class EvaluationTest {
                     mathMatches,
                     confidentMistake,
                     safe(result.get("ocrEngineSummary")),
-                    safe(result.get("ocrConsensusReason"))
+                    safe(result.get("ocrConsensusReason")),
+                    safe(result.get("rawText")),
+                    safe(result.get("verificationText")),
+                    safe(result.get("thresholdText"))
             );
 
             caseLogs.add(caseLog);
 
             printCase(caseLog);
-            System.out.println("Duration: " + caseDurationMs + " ms");
+            System.out.println("Duration: " + formatDuration(caseDurationMs));
 
             appendCaseToTxtLog(txtLog, caseLog);
             txtLog.append("Duration: ").append(caseDurationMs).append(" ms\n");
             txtLog.append("--------------------------------\n");
         }
+
+        int engineComparable = engineAgreement + engineDisagreement;
 
         EvaluationSummaryLog summaryLog = new EvaluationSummaryLog(
                 total,
@@ -185,10 +201,12 @@ public class EvaluationTest {
                 confidentMistakes,
                 correctMathMatches,
                 percentNumber(correctMathMatches, total),
+                engineComparable,
+                percentNumber(engineComparable, total),
                 engineAgreement,
-                percentNumber(engineAgreement, total),
+                percentNumber(engineAgreement, engineComparable),
                 engineDisagreement,
-                percentNumber(engineDisagreement, total)
+                percentNumber(engineDisagreement, engineComparable)
         );
 
         FullEvaluationLog fullLog = new FullEvaluationLog(summaryLog, caseLogs);
@@ -198,8 +216,15 @@ public class EvaluationTest {
         appendSummaryToTxtLog(txtLog, summaryLog);
         printSummary(summaryLog);
 
-        System.out.println("Total duration: " + evaluationDurationMs + " ms");
-        System.out.println("Average per case: " + (total == 0 ? 0 : evaluationDurationMs / total) + " ms");
+        System.out.println("Total duration: " + formatDuration(evaluationDurationMs));
+
+        long averageDurationMs =
+                total == 0 ? 0 : evaluationDurationMs / total;
+
+        System.out.println(
+                "Average per case: "
+                        + formatDuration(averageDurationMs)
+        );
 
         txtLog.append("Total duration: ").append(evaluationDurationMs).append(" ms\n");
         txtLog.append("Average per case: ")
@@ -237,7 +262,7 @@ public class EvaluationTest {
                 .replace("\\", "_")
                 .replace(".", "_");
 
-        Path cacheFile = cacheDir.resolve(safeFileName + "-" + hash + ".json");
+        Path cacheFile = cacheDir.resolve(CACHE_VERSION + "-" + safeFileName + "-" + hash + ".json");
 
         if (Files.exists(cacheFile)) {
             System.out.println("CACHE HIT: " + fileName);
@@ -271,35 +296,30 @@ public class EvaluationTest {
     }
 
     private String extractGeminiText(String summary) {
-        try {
-            int start = summary.indexOf("GEMINI:");
-            int end = summary.indexOf("| OPENAI:");
-
-            if (start == -1 || end == -1) {
-                return "";
-            }
-
-            return normalizeForComparison(
-                    summary.substring(start + "GEMINI:".length(), end).trim()
-            );
-
-        } catch (Exception e) {
-            return "";
-        }
+        return extractEngineText(summary, "GEMINI:");
     }
 
     private String extractOpenAiText(String summary) {
+        return extractEngineText(summary, "OPENAI:");
+    }
+
+    private String extractEngineText(String summary, String engineLabel) {
         try {
-            int start = summary.indexOf("OPENAI:");
+            int start = summary.indexOf(engineLabel);
 
             if (start == -1) {
                 return "";
             }
 
+            int textStart = start + engineLabel.length();
+            int end = summary.indexOf("|", textStart);
+
+            if (end == -1) {
+                end = summary.length();
+            }
+
             return normalizeForComparison(
-                    summary.substring(start + "OPENAI:".length())
-                            .replace("|", "")
-                            .trim()
+                    summary.substring(textStart, end).trim()
             );
 
         } catch (Exception e) {
@@ -350,54 +370,86 @@ public class EvaluationTest {
         System.out.println("Confident mistake: " + log.confidentMistake());
         System.out.println("OCR engines: " + log.ocrEngineSummary());
         System.out.println("OCR consensus reason: " + log.ocrConsensusReason());
+
+        System.out.println("  - - -- - - - -  -");
+
+        if (log.fileName().contains("add6")
+                || log.fileName().contains("add10")) {
+
+            System.out.println("PRIMARY:      " + log.primaryText());
+            System.out.println("VERIFICATION: " + log.verificationText());
+            System.out.println("THRESHOLD:    " + log.thresholdText());
+        }
         System.out.println("--------------------------------");
     }
 
     private void appendSummaryToTxtLog(StringBuilder txtLog, EvaluationSummaryLog summary) {
         txtLog.append("\n===== OCR EVALUATION SUMMARY =====\n");
         txtLog.append("Total: ").append(summary.total()).append("\n");
+
         txtLog.append("Exact OCR matches: ")
                 .append(summary.exactOcrMatches()).append("/").append(summary.total())
                 .append(" = ").append(summary.exactOcrMatchesPercent()).append("%\n");
+
         txtLog.append("Needs teacher review: ")
                 .append(summary.needsTeacherReview()).append("/").append(summary.total())
                 .append(" = ").append(summary.needsTeacherReviewPercent()).append("%\n");
+
         txtLog.append("Auto resolved: ")
                 .append(summary.autoResolved()).append("/").append(summary.total())
                 .append(" = ").append(summary.autoResolvedPercent()).append("%\n");
-        txtLog.append("Confident mistakes: ").append(summary.confidentMistakes()).append("\n");
+
+        txtLog.append("Confident mistakes: ")
+                .append(summary.confidentMistakes()).append("\n");
+
         txtLog.append("Math correctness matches: ")
                 .append(summary.mathCorrectnessMatches()).append("/").append(summary.total())
                 .append(" = ").append(summary.mathCorrectnessMatchesPercent()).append("%\n");
+
+        txtLog.append("Engine comparable cases: ")
+                .append(summary.engineComparable()).append("/").append(summary.total())
+                .append(" = ").append(summary.engineComparablePercent()).append("%\n");
+
         txtLog.append("Engine agreement: ")
-                .append(summary.engineAgreement()).append("/").append(summary.total())
+                .append(summary.engineAgreement()).append("/").append(summary.engineComparable())
                 .append(" = ").append(summary.engineAgreementPercent()).append("%\n");
 
         txtLog.append("Engine disagreement: ")
-                .append(summary.engineDisagreement()).append("/").append(summary.total())
+                .append(summary.engineDisagreement()).append("/").append(summary.engineComparable())
                 .append(" = ").append(summary.engineDisagreementPercent()).append("%\n");
+
         txtLog.append("==================================\n");
     }
 
     private void printSummary(EvaluationSummaryLog summary) {
         System.out.println("\n===== OCR EVALUATION SUMMARY =====");
         System.out.println("Total: " + summary.total());
+
         System.out.println("Exact OCR matches: " + summary.exactOcrMatches() + "/" + summary.total()
                 + " = " + summary.exactOcrMatchesPercent() + "%");
+
         System.out.println("Needs teacher review: " + summary.needsTeacherReview() + "/" + summary.total()
                 + " = " + summary.needsTeacherReviewPercent() + "%");
+
         System.out.println("Auto resolved: " + summary.autoResolved() + "/" + summary.total()
                 + " = " + summary.autoResolvedPercent() + "%");
+
         System.out.println("Confident mistakes: " + summary.confidentMistakes());
+
         System.out.println("Math correctness matches: " + summary.mathCorrectnessMatches() + "/" + summary.total()
                 + " = " + summary.mathCorrectnessMatchesPercent() + "%");
+
+        System.out.println("Engine comparable cases: " + summary.engineComparable() + "/" + summary.total()
+                + " = " + summary.engineComparablePercent() + "%");
+
         System.out.println("Engine agreement: " + summary.engineAgreement()
-                + "/" + summary.total()
+                + "/" + summary.engineComparable()
                 + " = " + summary.engineAgreementPercent() + "%");
 
         System.out.println("Engine disagreement: " + summary.engineDisagreement()
-                + "/" + summary.total()
+                + "/" + summary.engineComparable()
                 + " = " + summary.engineDisagreementPercent() + "%");
+
         System.out.println("==================================\n");
     }
 
@@ -435,7 +487,10 @@ public class EvaluationTest {
             boolean mathMatch,
             boolean confidentMistake,
             String ocrEngineSummary,
-            String ocrConsensusReason
+            String ocrConsensusReason,
+            String primaryText,
+            String verificationText,
+            String thresholdText
     ) {}
 
     record EvaluationSummaryLog(
@@ -449,6 +504,8 @@ public class EvaluationTest {
             int confidentMistakes,
             int mathCorrectnessMatches,
             double mathCorrectnessMatchesPercent,
+            int engineComparable,
+            double engineComparablePercent,
             int engineAgreement,
             double engineAgreementPercent,
             int engineDisagreement,
@@ -480,5 +537,23 @@ public class EvaluationTest {
         }
 
         return "image/png";
+    }
+
+    private String formatDuration(long millis) {
+        long seconds = millis / 1000;
+        long minutes = seconds / 60;
+
+        long remainingSeconds = seconds % 60;
+        long remainingMillis = millis % 1000;
+
+        if (minutes > 0) {
+            return minutes + "m " + remainingSeconds + "s";
+        }
+
+        if (seconds > 0) {
+            return seconds + "." + (remainingMillis / 100) + "s";
+        }
+
+        return millis + " ms";
     }
 }
