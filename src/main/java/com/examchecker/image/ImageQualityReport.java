@@ -10,6 +10,12 @@ public record ImageQualityReport(
         String reason,
         double blurScore,
         double contrastScore,
-        double brightnessScore
+        double brightnessScore,
+        boolean analyzable,
+        int width,
+        int height,
+        double qualityScore,
+        ImageQualityDecision decision,
+        String policyVersion
 ) {
 }

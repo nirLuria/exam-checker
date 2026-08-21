@@ -12,13 +12,11 @@ import java.io.InputStream;
 @Service
 public class ImageQualityService {
 
-    private static final int MIN_WIDTH = 250;
-    private static final int MIN_HEIGHT = 120;
+    private final ImageQualityPolicy policy;
 
-    private static final double BLUR_THRESHOLD = 80.0;
-    private static final double LOW_CONTRAST_THRESHOLD = 35.0;
-    private static final double TOO_DARK_THRESHOLD = 45.0;
-    private static final double TOO_BRIGHT_THRESHOLD = 220.0;
+    public ImageQualityService(ImageQualityPolicy policy) {
+        this.policy = policy;
+    }
 
     public ImageQualityReport analyze(MultipartFile file) {
         try (InputStream inputStream = file.getInputStream()) {
@@ -54,16 +52,16 @@ public class ImageQualityService {
         int width = image.getWidth();
         int height = image.getHeight();
 
-        boolean tooSmall = width < MIN_WIDTH || height < MIN_HEIGHT;
+        boolean tooSmall = policy.isTooSmall(width, height);
 
         double brightness = calculateAverageBrightness(image);
         double contrast = calculateContrast(image);
         double blurScore = calculateBlurScore(image);
 
-        boolean blurry = blurScore < BLUR_THRESHOLD;
-        boolean lowContrast = contrast < LOW_CONTRAST_THRESHOLD;
-        boolean tooDark = brightness < TOO_DARK_THRESHOLD;
-        boolean tooBright = brightness > TOO_BRIGHT_THRESHOLD;
+        boolean blurry = policy.isBlurry(blurScore);
+        boolean lowContrast = policy.isLowContrast(contrast);
+        boolean tooDark = policy.isTooDark(brightness);
+        boolean tooBright = policy.isTooBright(brightness);
 
         StringBuilder reason = new StringBuilder();
 
@@ -94,6 +92,14 @@ public class ImageQualityService {
                         tooDark ||
                         tooBright;
 
+        double qualityScore = policy.calculateScore(
+                tooSmall,
+                blurry,
+                lowContrast,
+                tooDark,
+                tooBright
+        );
+
         return new ImageQualityReport(
                 tooSmall,
                 blurry,
@@ -104,7 +110,13 @@ public class ImageQualityService {
                 reason.toString().trim(),
                 blurScore,
                 contrast,
-                brightness
+                brightness,
+                true,
+                width,
+                height,
+                qualityScore,
+                policy.decide(qualityScore),
+                policy.version()
         );
     }
 
@@ -124,7 +136,13 @@ public class ImageQualityService {
                 reason,
                 blurScore,
                 contrastScore,
-                brightnessScore
+                brightnessScore,
+                false,
+                0,
+                0,
+                0,
+                ImageQualityDecision.REJECT,
+                policy.version()
         );
     }
 
@@ -180,6 +198,10 @@ public class ImageQualityService {
                 sumSquared += laplacian * laplacian;
                 count++;
             }
+        }
+
+        if (count == 0) {
+            return 0;
         }
 
         double mean = sum / count;
