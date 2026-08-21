@@ -71,4 +71,9 @@ public class OpenAiOcrService implements OcrService {
             );
         }
     }
+
+    @Override
+    public String modelVersion() {
+        return openAiClient.modelVersion();
+    }
 }

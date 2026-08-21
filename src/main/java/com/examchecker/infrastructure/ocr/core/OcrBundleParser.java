@@ -1,69 +1,91 @@
 package com.examchecker.infrastructure.ocr.core;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
-
-import java.util.Map;
 
 @Component
 public class OcrBundleParser {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
-    public OcrBundleResult parse(String json) {
+    public OcrBundleParser(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
+    public OcrBundleResult parse(String rawOutput) {
+        if (rawOutput == null || rawOutput.isBlank()) {
+            throw new OcrBundleParseException("OCR output is empty");
+        }
+
         try {
-            String cleanedJson = cleanJson(json);
-
-            Map<String, Object> wrapper =
-                    objectMapper.readValue(cleanedJson, Map.class);
+            JsonNode root = objectMapper.readTree(cleanJson(rawOutput));
+            if (root == null || !root.isObject()) {
+                throw new OcrBundleParseException("OCR output must be a JSON object");
+            }
 
             return new OcrBundleResult(
-                    toOcrReading((Map<String, Object>) wrapper.get("primary")),
-                    toOcrReading((Map<String, Object>) wrapper.get("verification")),
-                    toOcrReading((Map<String, Object>) wrapper.get("thresholdRead")),
-                    toSuspiciousCheck((Map<String, Object>) wrapper.get("suspiciousCheck"))
+                    toOcrReading(requiredObject(root, "primary"), "primary"),
+                    toOcrReading(requiredObject(root, "verification"), "verification"),
+                    toOcrReading(requiredObject(root, "thresholdRead"), "thresholdRead"),
+                    toSuspiciousCheck(requiredObject(root, "suspiciousCheck"))
             );
-
+        } catch (OcrBundleParseException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse OCR bundle JSON: " + json, e);
+            throw new OcrBundleParseException("Failed to parse OCR bundle JSON", e);
         }
     }
 
-    private OcrReading toOcrReading(Map<String, Object> map) {
-        if (map == null) {
-            return new OcrReading("", false);
-        }
-
+    private OcrReading toOcrReading(JsonNode node, String fieldName) {
         return new OcrReading(
-                safe(map.get("rawText")),
-                Boolean.TRUE.equals(map.get("isClearlyReadable"))
+                requiredText(node, "rawText", fieldName),
+                requiredBoolean(node, "isClearlyReadable", fieldName)
         );
     }
 
-    private SuspiciousCheckResult toSuspiciousCheck(Map<String, Object> map) {
-        if (map == null) {
-            return new SuspiciousCheckResult(false, "", "");
-        }
-
+    private SuspiciousCheckResult toSuspiciousCheck(JsonNode node) {
         return new SuspiciousCheckResult(
-                Boolean.TRUE.equals(map.get("suspicious")),
-                safe(map.get("reason")),
-                safe(map.get("suggestedRawText"))
+                requiredBoolean(node, "suspicious", "suspiciousCheck"),
+                requiredText(node, "reason", "suspiciousCheck"),
+                requiredText(node, "suggestedRawText", "suspiciousCheck")
         );
     }
 
-    private String cleanJson(String json) {
-        if (json == null) {
-            return "";
+    private JsonNode requiredObject(JsonNode parent, String fieldName) {
+        JsonNode value = parent.get(fieldName);
+        if (value == null || !value.isObject()) {
+            throw new OcrBundleParseException(fieldName + " must be a JSON object");
         }
-
-        return json
-                .replace("```json", "")
-                .replace("```", "")
-                .trim();
+        return value;
     }
 
-    private String safe(Object value) {
-        return value == null ? "" : value.toString();
+    private String requiredText(JsonNode parent, String fieldName, String parentName) {
+        JsonNode value = parent.get(fieldName);
+        if (value == null || !value.isTextual()) {
+            throw new OcrBundleParseException(parentName + "." + fieldName + " must be text");
+        }
+        return value.textValue();
+    }
+
+    private boolean requiredBoolean(JsonNode parent, String fieldName, String parentName) {
+        JsonNode value = parent.get(fieldName);
+        if (value == null || !value.isBoolean()) {
+            throw new OcrBundleParseException(parentName + "." + fieldName + " must be boolean");
+        }
+        return value.booleanValue();
+    }
+
+    private String cleanJson(String rawOutput) {
+        String cleaned = rawOutput.trim();
+        if (cleaned.startsWith("```json")) {
+            cleaned = cleaned.substring("```json".length()).trim();
+        } else if (cleaned.startsWith("```")) {
+            cleaned = cleaned.substring("```".length()).trim();
+        }
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 3).trim();
+        }
+        return cleaned;
     }
 }

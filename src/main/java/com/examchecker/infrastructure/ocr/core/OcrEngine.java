@@ -4,7 +4,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface OcrEngine {
 
-    OcrEngineName name();
+    OcrEngineMetadata metadata();
 
-    OcrBundleResult extract(MultipartFile file);
+    String extractRaw(MultipartFile file);
 }
