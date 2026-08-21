@@ -7,7 +7,7 @@ import com.examchecker.infrastructure.ocr.core.MultiEngineOcrService;
 import com.examchecker.infrastructure.ocr.core.OcrBundleResult;
 import com.examchecker.infrastructure.ocr.core.OcrConsensusResult;
 import com.examchecker.infrastructure.ocr.core.OcrConsensusService;
-import com.examchecker.infrastructure.ocr.core.OcrEngineBundleResult;
+import com.examchecker.infrastructure.ocr.core.OcrEngineResult;
 import com.examchecker.infrastructure.ocr.core.OcrEngineName;
 import com.examchecker.infrastructure.ocr.core.SuspiciousCheckResult;
 import com.examchecker.service.MathTextNormalizer;
@@ -47,9 +47,9 @@ public class CheckService {
         try {
             ImageQualityReport imageQualityReport = imageQualityService.analyze(file);
 
-            List<OcrEngineBundleResult> engineResults = new ArrayList<>();
+            List<OcrEngineResult> engineResults = new ArrayList<>();
 
-            OcrEngineBundleResult openAiResult =
+            OcrEngineResult openAiResult =
                     multiEngineOcrService.extractWithEngine(
                             OcrEngineName.OPENAI,
                             file
@@ -58,9 +58,21 @@ public class CheckService {
             engineResults.add(openAiResult);
 
             OcrConsensusResult consensus = ocrConsensusService.decide(engineResults);
+            boolean geminiAlreadyRun = false;
 
             if (consensus.selectedBundle() == null) {
-                throw new RuntimeException("OCR consensus failed: " + consensus.reason());
+                OcrEngineResult geminiResult =
+                        multiEngineOcrService.extractWithEngine(
+                                OcrEngineName.GEMINI,
+                                file
+                        );
+                engineResults.add(geminiResult);
+                geminiAlreadyRun = true;
+                consensus = ocrConsensusService.decide(engineResults);
+
+                if (consensus.selectedBundle() == null) {
+                    throw new RuntimeException("All OCR engines failed: " + consensus.reason());
+                }
             }
 
             OcrBundleResult ocrBundle = consensus.selectedBundle();
@@ -91,13 +103,14 @@ public class CheckService {
                     );
 
             boolean shouldRunGemini =
-                    preliminaryNeedsReview
+                    !geminiAlreadyRun
+                            && (preliminaryNeedsReview
                             || confidenceGateTriggered
-                            || openAiMathWrong;
+                            || openAiMathWrong);
 
             if (shouldRunGemini)
             {
-                OcrEngineBundleResult geminiResult =
+                OcrEngineResult geminiResult =
                         multiEngineOcrService.extractWithEngine(
                                 OcrEngineName.GEMINI,
                                 file
@@ -157,6 +170,9 @@ public class CheckService {
 
                     Map.entry("ocrEngineSummary", ocrEngineSummary),
                     Map.entry("ocrConsensusReason", safe(consensus.reason())),
+                    Map.entry("ocrConsensusPolicyVersion", consensus.policyVersion()),
+                    Map.entry("selectedOcrEngine", consensus.selectedEngineName()),
+                    Map.entry("ocrComparison", consensus.comparison()),
 
                     Map.entry("suspiciousReason",
                             finalNeedsReview
@@ -276,7 +292,7 @@ public class CheckService {
     private boolean calculateNeedsReview(
             ImageQualityReport imageQualityReport,
             OcrConsensusResult consensus,
-            List<OcrEngineBundleResult> engineResults,
+            List<OcrEngineResult> engineResults,
             BundleState state,
             boolean confidenceGateTriggered
     ) {
@@ -311,27 +327,27 @@ public class CheckService {
                 || confidenceGateTriggered;
     }
 
-    private boolean anyEngineFailed(List<OcrEngineBundleResult> engineResults) {
+    private boolean anyEngineFailed(List<OcrEngineResult> engineResults) {
         return engineResults.stream()
-                .anyMatch(OcrEngineBundleResult::failed);
+                .anyMatch(OcrEngineResult::failed);
     }
 
-    private boolean engineDisagreement(List<OcrEngineBundleResult> engineResults) {
+    private boolean engineDisagreement(List<OcrEngineResult> engineResults) {
         return engineResults.stream()
-                .filter(OcrEngineBundleResult::succeeded)
+                .filter(OcrEngineResult::succeeded)
                 .map(result -> mathTextNormalizer.normalize(result.bundle().primary().rawText()))
                 .distinct()
                 .count() > 1;
     }
 
-    private String buildOcrEngineSummary(List<OcrEngineBundleResult> engineResults) {
+    private String buildOcrEngineSummary(List<OcrEngineResult> engineResults) {
         if (engineResults == null || engineResults.isEmpty()) {
             return "";
         }
 
         StringBuilder summary = new StringBuilder();
 
-        for (OcrEngineBundleResult result : engineResults) {
+        for (OcrEngineResult result : engineResults) {
             summary.append(result.engineName())
                     .append(": ");
 

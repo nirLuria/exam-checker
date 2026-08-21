@@ -124,6 +124,10 @@ public class OpenAiClient {
         return sendImageRequest(base64Image, PRIMARY_PROMPT);
     }
 
+    public String modelVersion() {
+        return MODEL;
+    }
+
     public String extractRawTextVerification(String base64Image) {
         return sendImageRequest(base64Image, VERIFICATION_PROMPT);
     }

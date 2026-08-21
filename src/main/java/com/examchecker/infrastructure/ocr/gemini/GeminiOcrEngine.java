@@ -1,8 +1,7 @@
 package com.examchecker.infrastructure.ocr.gemini;
 
-import com.examchecker.infrastructure.ocr.core.OcrBundleParser;
-import com.examchecker.infrastructure.ocr.core.OcrBundleResult;
 import com.examchecker.infrastructure.ocr.core.OcrEngine;
+import com.examchecker.infrastructure.ocr.core.OcrEngineMetadata;
 import com.examchecker.infrastructure.ocr.core.OcrEngineName;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
@@ -10,25 +9,30 @@ import org.springframework.web.multipart.MultipartFile;
 @Component
 public class GeminiOcrEngine implements OcrEngine {
 
+    private static final String ADAPTER_VERSION = "gemini-ocr-adapter-v1";
+
     private final GeminiOcrService geminiOcrService;
-    private final OcrBundleParser ocrBundleParser;
+    private final GeminiProperties properties;
 
     public GeminiOcrEngine(
             GeminiOcrService geminiOcrService,
-            OcrBundleParser ocrBundleParser
+            GeminiProperties properties
     ) {
         this.geminiOcrService = geminiOcrService;
-        this.ocrBundleParser = ocrBundleParser;
+        this.properties = properties;
     }
 
     @Override
-    public OcrEngineName name() {
-        return OcrEngineName.GEMINI;
+    public OcrEngineMetadata metadata() {
+        return new OcrEngineMetadata(
+                OcrEngineName.GEMINI,
+                properties.model(),
+                ADAPTER_VERSION
+        );
     }
 
     @Override
-    public OcrBundleResult extract(MultipartFile image) {
-        String rawResponse = geminiOcrService.extractText(image);
-        return ocrBundleParser.parse(rawResponse);
+    public String extractRaw(MultipartFile image) {
+        return geminiOcrService.extractText(image);
     }
 }
