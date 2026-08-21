@@ -32,12 +32,12 @@ class ImageQualityServiceTest {
         assertEquals(100.0, report.qualityScore());
         assertEquals(VALID_WIDTH, report.width());
         assertEquals(VALID_HEIGHT, report.height());
-        assertEquals("image-quality-v1", report.policyVersion());
+        assertEquals("image-quality-v2", report.policyVersion());
     }
 
     @Test
     void marksSmallImageForReview() throws IOException {
-        ImageQualityReport report = service.analyze(asMultipartFile(checkerboard(200, 100, 10)));
+        ImageQualityReport report = service.analyze(asMultipartFile(checkerboard(150, 50, 10)));
 
         assertTrue(report.tooSmall());
         assertEquals(70.0, report.qualityScore());

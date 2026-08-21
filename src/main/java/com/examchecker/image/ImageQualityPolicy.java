@@ -5,10 +5,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class ImageQualityPolicy {
 
-    private static final String VERSION = "image-quality-v1";
+    private static final String VERSION = "image-quality-v2";
 
-    private static final int MIN_WIDTH = 250;
-    private static final int MIN_HEIGHT = 120;
+    private static final int MIN_WIDTH = 180;
+    private static final int MIN_HEIGHT = 60;
 
     private static final double BLUR_THRESHOLD = 80.0;
     private static final double LOW_CONTRAST_THRESHOLD = 35.0;
