@@ -74,11 +74,11 @@ public class ImageQualityPolicy {
 
     public ImageQualityDecision decide(double score) {
         if (score >= ACCEPT_THRESHOLD) {
-            return ImageQualityDecision.ACCEPT;
+            return ImageQualityDecision.PASS;
         }
         if (score >= REVIEW_THRESHOLD) {
-            return ImageQualityDecision.REVIEW;
+            return ImageQualityDecision.TEACHER_REVIEW;
         }
-        return ImageQualityDecision.REJECT;
+        return ImageQualityDecision.RETRY_CAPTURE;
     }
 }

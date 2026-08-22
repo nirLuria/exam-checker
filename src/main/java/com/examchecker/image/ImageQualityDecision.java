@@ -1,7 +1,7 @@
 package com.examchecker.image;
 
 public enum ImageQualityDecision {
-    ACCEPT,
-    REVIEW,
-    REJECT
+    PASS,
+    TEACHER_REVIEW,
+    RETRY_CAPTURE
 }
