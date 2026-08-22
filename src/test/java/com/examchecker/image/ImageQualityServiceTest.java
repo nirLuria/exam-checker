@@ -28,7 +28,8 @@ class ImageQualityServiceTest {
 
         assertTrue(report.analyzable());
         assertFalse(report.suspicious());
-        assertEquals(ImageQualityDecision.ACCEPT, report.decision());
+        assertEquals(ImageQualityDecision.PASS, report.decision());
+        assertTrue(report.reasonCodes().isEmpty());
         assertEquals(100.0, report.qualityScore());
         assertEquals(VALID_WIDTH, report.width());
         assertEquals(VALID_HEIGHT, report.height());
@@ -41,7 +42,8 @@ class ImageQualityServiceTest {
 
         assertTrue(report.tooSmall());
         assertEquals(70.0, report.qualityScore());
-        assertEquals(ImageQualityDecision.REVIEW, report.decision());
+        assertEquals(ImageQualityDecision.TEACHER_REVIEW, report.decision());
+        assertTrue(report.reasonCodes().contains(ImageQualityReasonCode.TOO_SMALL));
         assertTrue(report.reason().contains("too small"));
     }
 
@@ -51,7 +53,8 @@ class ImageQualityServiceTest {
 
         assertTrue(report.blurry());
         assertFalse(report.lowContrast());
-        assertEquals(ImageQualityDecision.REVIEW, report.decision());
+        assertEquals(ImageQualityDecision.TEACHER_REVIEW, report.decision());
+        assertTrue(report.reasonCodes().contains(ImageQualityReasonCode.BLURRY));
     }
 
     @Test
@@ -60,7 +63,7 @@ class ImageQualityServiceTest {
 
         assertTrue(report.tooDark());
         assertTrue(report.lowContrast());
-        assertEquals(ImageQualityDecision.REJECT, report.decision());
+        assertEquals(ImageQualityDecision.RETRY_CAPTURE, report.decision());
     }
 
     @Test
@@ -69,7 +72,7 @@ class ImageQualityServiceTest {
 
         assertTrue(report.tooBright());
         assertTrue(report.lowContrast());
-        assertEquals(ImageQualityDecision.REJECT, report.decision());
+        assertEquals(ImageQualityDecision.RETRY_CAPTURE, report.decision());
     }
 
     @Test
@@ -86,7 +89,11 @@ class ImageQualityServiceTest {
         assertFalse(report.analyzable());
         assertTrue(report.suspicious());
         assertEquals(0.0, report.qualityScore());
-        assertEquals(ImageQualityDecision.REJECT, report.decision());
+        assertEquals(ImageQualityDecision.RETRY_CAPTURE, report.decision());
+        assertEquals(
+                java.util.List.of(ImageQualityReasonCode.UNREADABLE_FILE),
+                report.reasonCodes()
+        );
         assertEquals(0, report.width());
         assertEquals(0, report.height());
         assertEquals("Could not read image file", report.reason());

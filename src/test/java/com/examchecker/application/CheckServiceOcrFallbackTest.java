@@ -3,6 +3,7 @@ package com.examchecker.application;
 import com.examchecker.image.ImageQualityDecision;
 import com.examchecker.image.ImageQualityReport;
 import com.examchecker.image.ImageQualityService;
+import com.examchecker.image.RejectedQuestionImageArchive;
 import com.examchecker.infrastructure.OpenAiClient;
 import com.examchecker.infrastructure.ocr.core.MultiEngineOcrService;
 import com.examchecker.infrastructure.ocr.core.OcrBundleResult;
@@ -25,15 +26,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class CheckServiceOcrFallbackTest {
 
     @Test
-    void triesGeminiWhenOpenAiFailsAndKeepsTeacherReview() {
+    void skipsAllOcrWhenImageRequiresRecapture() {
         MultiEngineOcrService multiEngineOcrService = mock(MultiEngineOcrService.class);
         OpenAiClient openAiClient = mock(OpenAiClient.class);
         ImageQualityService imageQualityService = mock(ImageQualityService.class);
+        RejectedQuestionImageArchive archive = mock(RejectedQuestionImageArchive.class);
         OcrConsensusService consensusService = new OcrConsensusService(
                 new OcrResultComparisonService(new CanonicalMathNormalizer())
         );
@@ -42,6 +45,41 @@ class CheckServiceOcrFallbackTest {
                 openAiClient,
                 new MathTextNormalizer(),
                 imageQualityService,
+                archive,
+                consensusService
+        );
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "bad.png", "image/png", new byte[]{1, 2, 3}
+        );
+        ImageQualityReport rejected = rejectedImageQuality();
+        RejectedQuestionImageArchive.ArchiveResult stored =
+                RejectedQuestionImageArchive.ArchiveResult.stored("archive-1", "2026/08/22/retry_capture/archive-1.png");
+        when(imageQualityService.analyze(file)).thenReturn(rejected);
+        when(archive.archive(file, rejected)).thenReturn(stored);
+
+        Map<String, Object> result = checkService.check(file);
+
+        assertEquals("RETRY_CAPTURE", result.get("processingStatus"));
+        assertEquals(true, result.get("ocrSkipped"));
+        assertEquals(stored, result.get("rejectedImageArchive"));
+        verifyNoInteractions(multiEngineOcrService, openAiClient);
+    }
+
+    @Test
+    void triesGeminiWhenOpenAiFailsAndKeepsTeacherReview() {
+        MultiEngineOcrService multiEngineOcrService = mock(MultiEngineOcrService.class);
+        OpenAiClient openAiClient = mock(OpenAiClient.class);
+        ImageQualityService imageQualityService = mock(ImageQualityService.class);
+        RejectedQuestionImageArchive archive = mock(RejectedQuestionImageArchive.class);
+        OcrConsensusService consensusService = new OcrConsensusService(
+                new OcrResultComparisonService(new CanonicalMathNormalizer())
+        );
+        CheckService checkService = new CheckService(
+                multiEngineOcrService,
+                openAiClient,
+                new MathTextNormalizer(),
+                imageQualityService,
+                archive,
                 consensusService
         );
         MockMultipartFile file = new MockMultipartFile(
@@ -52,6 +90,8 @@ class CheckServiceOcrFallbackTest {
         );
 
         when(imageQualityService.analyze(file)).thenReturn(acceptableImageQuality());
+        when(archive.archive(file, acceptableImageQuality()))
+                .thenReturn(RejectedQuestionImageArchive.ArchiveResult.notRequired());
         when(multiEngineOcrService.extractWithEngine(OcrEngineName.OPENAI, file))
                 .thenReturn(failedOpenAi());
         when(multiEngineOcrService.extractWithEngine(OcrEngineName.GEMINI, file))
@@ -115,6 +155,7 @@ class CheckServiceOcrFallbackTest {
                 false,
                 false,
                 "",
+                java.util.List.of(),
                 100,
                 50,
                 128,
@@ -122,7 +163,33 @@ class CheckServiceOcrFallbackTest {
                 300,
                 150,
                 100,
-                ImageQualityDecision.ACCEPT,
+                ImageQualityDecision.PASS,
+                "image-quality-v2"
+        );
+    }
+
+    private ImageQualityReport rejectedImageQuality() {
+        return new ImageQualityReport(
+                false,
+                true,
+                true,
+                true,
+                false,
+                true,
+                "Image appears blurry. Image has low contrast. Image is too dark.",
+                java.util.List.of(
+                        com.examchecker.image.ImageQualityReasonCode.BLURRY,
+                        com.examchecker.image.ImageQualityReasonCode.LOW_CONTRAST,
+                        com.examchecker.image.ImageQualityReasonCode.TOO_DARK
+                ),
+                10,
+                5,
+                20,
+                true,
+                300,
+                150,
+                30,
+                ImageQualityDecision.RETRY_CAPTURE,
                 "image-quality-v2"
         );
     }

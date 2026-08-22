@@ -56,19 +56,19 @@ class ImageQualityDatasetEvaluationTest {
         }
 
         assertEquals(35, imageFiles.size(), "Dataset image count changed; review the new baseline");
-        assertEquals(27, decisionCounts.getOrDefault(ImageQualityDecision.ACCEPT, 0));
-        assertEquals(8, decisionCounts.getOrDefault(ImageQualityDecision.REVIEW, 0));
-        assertEquals(0, decisionCounts.getOrDefault(ImageQualityDecision.REJECT, 0));
+        assertEquals(27, decisionCounts.getOrDefault(ImageQualityDecision.PASS, 0));
+        assertEquals(8, decisionCounts.getOrDefault(ImageQualityDecision.TEACHER_REVIEW, 0));
+        assertEquals(0, decisionCounts.getOrDefault(ImageQualityDecision.RETRY_CAPTURE, 0));
 
         Files.createDirectories(REPORT_PATH.getParent());
         Files.write(REPORT_PATH, reportLines, StandardCharsets.UTF_8);
 
         System.out.printf(
-                "Image quality dataset: total=%d, accept=%d, review=%d, reject=%d, report=%s%n",
+                "Image quality dataset: total=%d, pass=%d, teacherReview=%d, retryCapture=%d, report=%s%n",
                 imageFiles.size(),
-                decisionCounts.getOrDefault(ImageQualityDecision.ACCEPT, 0),
-                decisionCounts.getOrDefault(ImageQualityDecision.REVIEW, 0),
-                decisionCounts.getOrDefault(ImageQualityDecision.REJECT, 0),
+                decisionCounts.getOrDefault(ImageQualityDecision.PASS, 0),
+                decisionCounts.getOrDefault(ImageQualityDecision.TEACHER_REVIEW, 0),
+                decisionCounts.getOrDefault(ImageQualityDecision.RETRY_CAPTURE, 0),
                 REPORT_PATH
         );
     }

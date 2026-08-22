@@ -42,6 +42,9 @@ build/
 debug-images/
 debug-processed.png
 
+# Runtime evaluation artifacts (rejected question crops and metadata)
+runtime-data/
+
 # Logs
 *.log
 

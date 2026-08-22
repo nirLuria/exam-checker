@@ -8,6 +8,8 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class ImageQualityService {
@@ -64,25 +66,31 @@ public class ImageQualityService {
         boolean tooBright = policy.isTooBright(brightness);
 
         StringBuilder reason = new StringBuilder();
+        List<ImageQualityReasonCode> reasonCodes = new ArrayList<>();
 
         if (tooSmall) {
             reason.append("Image is too small. ");
+            reasonCodes.add(ImageQualityReasonCode.TOO_SMALL);
         }
 
         if (blurry) {
             reason.append("Image appears blurry. ");
+            reasonCodes.add(ImageQualityReasonCode.BLURRY);
         }
 
         if (lowContrast) {
             reason.append("Image has low contrast. ");
+            reasonCodes.add(ImageQualityReasonCode.LOW_CONTRAST);
         }
 
         if (tooDark) {
             reason.append("Image is too dark. ");
+            reasonCodes.add(ImageQualityReasonCode.TOO_DARK);
         }
 
         if (tooBright) {
             reason.append("Image is too bright. ");
+            reasonCodes.add(ImageQualityReasonCode.TOO_BRIGHT);
         }
 
         boolean suspicious =
@@ -108,6 +116,7 @@ public class ImageQualityService {
                 tooBright,
                 suspicious,
                 reason.toString().trim(),
+                reasonCodes,
                 blurScore,
                 contrast,
                 brightness,
@@ -134,6 +143,7 @@ public class ImageQualityService {
                 false,
                 true,
                 reason,
+                List.of(ImageQualityReasonCode.UNREADABLE_FILE),
                 blurScore,
                 contrastScore,
                 brightnessScore,
@@ -141,7 +151,7 @@ public class ImageQualityService {
                 0,
                 0,
                 0,
-                ImageQualityDecision.REJECT,
+                ImageQualityDecision.RETRY_CAPTURE,
                 policy.version()
         );
     }

@@ -1,7 +1,9 @@
 package com.examchecker.application;
 
 import com.examchecker.image.ImageQualityReport;
+import com.examchecker.image.ImageQualityDecision;
 import com.examchecker.image.ImageQualityService;
+import com.examchecker.image.RejectedQuestionImageArchive;
 import com.examchecker.infrastructure.OpenAiClient;
 import com.examchecker.infrastructure.ocr.core.MultiEngineOcrService;
 import com.examchecker.infrastructure.ocr.core.OcrBundleResult;
@@ -26,6 +28,7 @@ public class CheckService {
     private final OpenAiClient openAiClient;
     private final MathTextNormalizer mathTextNormalizer;
     private final ImageQualityService imageQualityService;
+    private final RejectedQuestionImageArchive rejectedQuestionImageArchive;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final OcrConsensusService ocrConsensusService;
 
@@ -34,18 +37,33 @@ public class CheckService {
             OpenAiClient openAiClient,
             MathTextNormalizer mathTextNormalizer,
             ImageQualityService imageQualityService,
+            RejectedQuestionImageArchive rejectedQuestionImageArchive,
             OcrConsensusService ocrConsensusService
     ) {
         this.multiEngineOcrService = multiEngineOcrService;
         this.openAiClient = openAiClient;
         this.mathTextNormalizer = mathTextNormalizer;
         this.imageQualityService = imageQualityService;
+        this.rejectedQuestionImageArchive = rejectedQuestionImageArchive;
         this.ocrConsensusService = ocrConsensusService;
     }
 
     public Map<String, Object> check(MultipartFile file) {
         try {
             ImageQualityReport imageQualityReport = imageQualityService.analyze(file);
+            RejectedQuestionImageArchive.ArchiveResult archiveResult =
+                    rejectedQuestionImageArchive.archive(file, imageQualityReport);
+
+            if (imageQualityReport.decision() == ImageQualityDecision.RETRY_CAPTURE) {
+                return Map.ofEntries(
+                        Map.entry("processingStatus", ImageQualityDecision.RETRY_CAPTURE.name()),
+                        Map.entry("ocrSkipped", true),
+                        Map.entry("needsTeacherReview", false),
+                        Map.entry("reason", imageQualityReport.reason()),
+                        Map.entry("imageQualityReport", imageQualityReport),
+                        Map.entry("rejectedImageArchive", archiveResult)
+                );
+            }
 
             List<OcrEngineResult> engineResults = new ArrayList<>();
 
@@ -208,7 +226,10 @@ public class CheckService {
                                     ? "Exercise is mathematically incorrect and contains a risky operator"
                                     : ""),
 
-                    Map.entry("imageQualityReport", imageQualityReport)
+                    Map.entry("imageQualityReport", imageQualityReport),
+                    Map.entry("rejectedImageArchive", archiveResult),
+                    Map.entry("ocrSkipped", false),
+                    Map.entry("processingStatus", "COMPLETED")
             );
 
         } catch (Exception e) {
@@ -317,6 +338,7 @@ public class CheckService {
                 !state.primaryReadable() && !state.verificationReadable();
 
         return consensus.needsReview()
+                || imageQualityReport.decision() == ImageQualityDecision.TEACHER_REVIEW
                 || anyEngineFailed(engineResults)
                 || engineDisagreement(engineResults)
                 || severeImageQualityIssue
