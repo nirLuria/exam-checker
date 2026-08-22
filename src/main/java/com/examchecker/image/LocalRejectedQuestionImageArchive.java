@@ -28,7 +28,7 @@ public class LocalRejectedQuestionImageArchive implements RejectedQuestionImageA
 
     @Autowired
     public LocalRejectedQuestionImageArchive(
-            @Value("${exam-checker.rejected-images.root:runtime-data/rejected-question-images}") String root,
+            @Value("${exam-checker.rejected-images.root:runtime-data/rejected-low-quality-question-images}") String root,
             ObjectMapper objectMapper
     ) {
         this(Path.of(root), objectMapper, Clock.systemUTC());
