@@ -1,10 +1,10 @@
 package com.examchecker.infrastructure.ocr.core;
 
-import org.springframework.web.multipart.MultipartFile;
+import com.examchecker.question.QuestionPackage;
 
 public interface OcrEngine {
 
     OcrEngineMetadata metadata();
 
-    String extractRaw(MultipartFile file);
+    String extractRaw(QuestionPackage questionPackage);
 }

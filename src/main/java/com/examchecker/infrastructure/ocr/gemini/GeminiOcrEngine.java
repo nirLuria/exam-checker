@@ -4,7 +4,7 @@ import com.examchecker.infrastructure.ocr.core.OcrEngine;
 import com.examchecker.infrastructure.ocr.core.OcrEngineMetadata;
 import com.examchecker.infrastructure.ocr.core.OcrEngineName;
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
+import com.examchecker.question.QuestionPackage;
 
 @Component
 public class GeminiOcrEngine implements OcrEngine {
@@ -32,7 +32,10 @@ public class GeminiOcrEngine implements OcrEngine {
     }
 
     @Override
-    public String extractRaw(MultipartFile image) {
-        return geminiOcrService.extractText(image);
+    public String extractRaw(QuestionPackage questionPackage) {
+        return geminiOcrService.extractText(
+                questionPackage.image().content(),
+                questionPackage.image().contentType()
+        );
     }
 }

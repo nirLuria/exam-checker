@@ -1,9 +1,7 @@
 package com.examchecker.infrastructure;
 
-import org.springframework.web.multipart.MultipartFile;
-
 public interface OcrService {
-    String extractText(MultipartFile file);
+    String extractText(byte[] imageContent, String contentType);
 
     default String modelVersion() {
         return "unspecified";

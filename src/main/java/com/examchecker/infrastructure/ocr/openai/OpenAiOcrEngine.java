@@ -5,7 +5,7 @@ import com.examchecker.infrastructure.ocr.core.OcrEngine;
 import com.examchecker.infrastructure.ocr.core.OcrEngineMetadata;
 import com.examchecker.infrastructure.ocr.core.OcrEngineName;
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
+import com.examchecker.question.QuestionPackage;
 
 @Component
 public class OpenAiOcrEngine implements OcrEngine {
@@ -28,7 +28,10 @@ public class OpenAiOcrEngine implements OcrEngine {
     }
 
     @Override
-    public String extractRaw(MultipartFile file) {
-        return ocrService.extractText(file);
+    public String extractRaw(QuestionPackage questionPackage) {
+        return ocrService.extractText(
+                questionPackage.image().content(),
+                questionPackage.image().contentType()
+        );
     }
 }

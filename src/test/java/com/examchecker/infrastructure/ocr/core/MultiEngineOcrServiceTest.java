@@ -2,10 +2,17 @@ package com.examchecker.infrastructure.ocr.core;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.web.multipart.MultipartFile;
+import com.examchecker.image.ImageQualityDecision;
+import com.examchecker.question.OcrContext;
+import com.examchecker.question.QuestionImage;
+import com.examchecker.question.QuestionImageQuality;
+import com.examchecker.question.QuestionPackage;
+import com.examchecker.question.QuestionReference;
+import com.examchecker.question.QuestionType;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -21,7 +28,7 @@ class MultiEngineOcrServiceTest {
         FakeEngine openAi = FakeEngine.success(OcrEngineName.OPENAI);
         FakeEngine gemini = FakeEngine.success(OcrEngineName.GEMINI);
         MultiEngineOcrService service = new MultiEngineOcrService(List.of(openAi, gemini), parser);
-        MockMultipartFile input = input();
+        QuestionPackage input = input();
 
         List<OcrEngineResult> results = service.extractWithAllEngines(input);
 
@@ -90,8 +97,16 @@ class MultiEngineOcrServiceTest {
         assertTrue(exception.getMessage().contains("OPENAI"));
     }
 
-    private MockMultipartFile input() {
-        return new MockMultipartFile("file", "question.png", "image/png", new byte[]{1, 2, 3});
+    private QuestionPackage input() {
+        return new QuestionPackage(
+                QuestionPackage.CURRENT_CONTRACT_VERSION,
+                UUID.fromString("550e8400-e29b-41d4-a716-446655440000"),
+                Instant.parse("2026-08-23T08:00:00Z"),
+                new QuestionReference("exam-1", 1, "1", ""),
+                QuestionImage.create(new byte[]{1, 2, 3}, "image/png", 300, 150),
+                new QuestionImageQuality(100, ImageQualityDecision.PASS, List.of(), "image-quality-v2"),
+                new OcrContext("", QuestionType.ARITHMETIC, List.of())
+        );
     }
 
     private static final class FakeEngine implements OcrEngine {
@@ -100,7 +115,7 @@ class MultiEngineOcrServiceTest {
         private final String rawOutput;
         private final RuntimeException failure;
         private int callCount;
-        private MultipartFile receivedInput;
+        private QuestionPackage receivedInput;
 
         private FakeEngine(OcrEngineName name, String rawOutput, RuntimeException failure) {
             this.metadata = new OcrEngineMetadata(name, "test-model", "test-adapter-v1");
@@ -126,7 +141,7 @@ class MultiEngineOcrServiceTest {
         }
 
         @Override
-        public String extractRaw(MultipartFile file) {
+        public String extractRaw(QuestionPackage file) {
             callCount++;
             receivedInput = file;
             if (failure != null) {

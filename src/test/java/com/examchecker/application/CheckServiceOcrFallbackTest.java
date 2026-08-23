@@ -17,6 +17,8 @@ import com.examchecker.infrastructure.ocr.core.OcrResultComparisonService;
 import com.examchecker.infrastructure.ocr.core.SuspiciousCheckResult;
 import com.examchecker.service.CanonicalMathNormalizer;
 import com.examchecker.service.MathTextNormalizer;
+import com.examchecker.question.QuestionPackage;
+import com.examchecker.question.QuestionPackageFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
@@ -28,6 +30,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 class CheckServiceOcrFallbackTest {
 
@@ -37,6 +41,7 @@ class CheckServiceOcrFallbackTest {
         OpenAiClient openAiClient = mock(OpenAiClient.class);
         ImageQualityService imageQualityService = mock(ImageQualityService.class);
         RejectedQuestionImageArchive archive = mock(RejectedQuestionImageArchive.class);
+        QuestionPackageFactory questionPackageFactory = new QuestionPackageFactory();
         OcrConsensusService consensusService = new OcrConsensusService(
                 new OcrResultComparisonService(new CanonicalMathNormalizer())
         );
@@ -46,6 +51,7 @@ class CheckServiceOcrFallbackTest {
                 new MathTextNormalizer(),
                 imageQualityService,
                 archive,
+                questionPackageFactory,
                 consensusService
         );
         MockMultipartFile file = new MockMultipartFile(
@@ -71,6 +77,7 @@ class CheckServiceOcrFallbackTest {
         OpenAiClient openAiClient = mock(OpenAiClient.class);
         ImageQualityService imageQualityService = mock(ImageQualityService.class);
         RejectedQuestionImageArchive archive = mock(RejectedQuestionImageArchive.class);
+        QuestionPackageFactory questionPackageFactory = new QuestionPackageFactory();
         OcrConsensusService consensusService = new OcrConsensusService(
                 new OcrResultComparisonService(new CanonicalMathNormalizer())
         );
@@ -80,6 +87,7 @@ class CheckServiceOcrFallbackTest {
                 new MathTextNormalizer(),
                 imageQualityService,
                 archive,
+                questionPackageFactory,
                 consensusService
         );
         MockMultipartFile file = new MockMultipartFile(
@@ -92,9 +100,9 @@ class CheckServiceOcrFallbackTest {
         when(imageQualityService.analyze(file)).thenReturn(acceptableImageQuality());
         when(archive.archive(file, acceptableImageQuality()))
                 .thenReturn(RejectedQuestionImageArchive.ArchiveResult.notRequired());
-        when(multiEngineOcrService.extractWithEngine(OcrEngineName.OPENAI, file))
+        when(multiEngineOcrService.extractWithEngine(eq(OcrEngineName.OPENAI), any(QuestionPackage.class)))
                 .thenReturn(failedOpenAi());
-        when(multiEngineOcrService.extractWithEngine(OcrEngineName.GEMINI, file))
+        when(multiEngineOcrService.extractWithEngine(eq(OcrEngineName.GEMINI), any(QuestionPackage.class)))
                 .thenReturn(successfulGemini());
         when(openAiClient.analyzeExercise("5+3=8")).thenReturn("""
                 {
@@ -111,8 +119,8 @@ class CheckServiceOcrFallbackTest {
         assertEquals(OcrEngineName.GEMINI, result.get("selectedOcrEngine"));
         assertEquals("ocr-consensus-v1", result.get("ocrConsensusPolicyVersion"));
         assertTrue(Boolean.TRUE.equals(result.get("needsTeacherReview")));
-        verify(multiEngineOcrService).extractWithEngine(OcrEngineName.OPENAI, file);
-        verify(multiEngineOcrService).extractWithEngine(OcrEngineName.GEMINI, file);
+        verify(multiEngineOcrService).extractWithEngine(eq(OcrEngineName.OPENAI), any(QuestionPackage.class));
+        verify(multiEngineOcrService).extractWithEngine(eq(OcrEngineName.GEMINI), any(QuestionPackage.class));
     }
 
     private OcrEngineResult failedOpenAi() {

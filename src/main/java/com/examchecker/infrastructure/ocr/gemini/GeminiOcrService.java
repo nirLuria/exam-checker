@@ -3,7 +3,6 @@ package com.examchecker.infrastructure.ocr.gemini;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriComponentsBuilder;
 import java.net.URI;
 import java.util.Base64;
@@ -22,13 +21,11 @@ public class GeminiOcrService {
         this.properties = properties;
     }
 
-    public String extractText(MultipartFile image) {
+    public String extractText(byte[] imageContent, String contentType) {
 
         try {
 
-            byte[] bytes = image.getBytes();
-
-            String base64 = Base64.getEncoder().encodeToString(bytes);
+            String base64 = Base64.getEncoder().encodeToString(imageContent);
 
             String prompt = """
                     You are an OCR engine for handwritten math exercises.
@@ -66,7 +63,7 @@ public class GeminiOcrService {
                                             Map.of(
                                                     "inline_data",
                                                     Map.of(
-                                                            "mime_type", image.getContentType(),
+                                                            "mime_type", contentType,
                                                             "data", base64
                                                     )
                                             )

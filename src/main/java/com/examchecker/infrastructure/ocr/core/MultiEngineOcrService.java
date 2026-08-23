@@ -3,7 +3,7 @@ package com.examchecker.infrastructure.ocr.core;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.multipart.MultipartFile;
+import com.examchecker.question.QuestionPackage;
 
 import java.net.SocketTimeoutException;
 import java.net.http.HttpTimeoutException;
@@ -12,6 +12,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -26,32 +27,34 @@ public class MultiEngineOcrService {
         validateUniqueEngineNames(this.engines);
     }
 
-    public List<OcrEngineResult> extractWithAllEngines(MultipartFile file) {
+    public List<OcrEngineResult> extractWithAllEngines(QuestionPackage questionPackage) {
+        Objects.requireNonNull(questionPackage, "questionPackage must not be null");
         List<OcrEngineResult> results = new ArrayList<>();
 
         engines.stream()
                 .sorted(Comparator.comparing(engine -> engine.metadata().engineName().name()))
-                .forEach(engine -> results.add(runEngine(engine, file)));
+                .forEach(engine -> results.add(runEngine(engine, questionPackage)));
 
         return List.copyOf(results);
     }
 
-    public OcrEngineResult extractWithEngine(OcrEngineName engineName, MultipartFile file) {
+    public OcrEngineResult extractWithEngine(OcrEngineName engineName, QuestionPackage questionPackage) {
+        Objects.requireNonNull(questionPackage, "questionPackage must not be null");
         OcrEngine engine = engines.stream()
                 .filter(candidate -> candidate.metadata().engineName() == engineName)
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Missing OCR engine: " + engineName));
 
-        return runEngine(engine, file);
+        return runEngine(engine, questionPackage);
     }
 
-    private OcrEngineResult runEngine(OcrEngine engine, MultipartFile file) {
+    private OcrEngineResult runEngine(OcrEngine engine, QuestionPackage questionPackage) {
         OcrEngineMetadata metadata = engine.metadata();
         long startTime = System.nanoTime();
         String rawOutput = "";
 
         try {
-            rawOutput = engine.extractRaw(file);
+            rawOutput = engine.extractRaw(questionPackage);
             OcrBundleResult bundle = bundleParser.parse(rawOutput);
 
             return OcrEngineResult.success(

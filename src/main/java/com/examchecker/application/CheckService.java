@@ -13,6 +13,11 @@ import com.examchecker.infrastructure.ocr.core.OcrEngineResult;
 import com.examchecker.infrastructure.ocr.core.OcrEngineName;
 import com.examchecker.infrastructure.ocr.core.SuspiciousCheckResult;
 import com.examchecker.service.MathTextNormalizer;
+import com.examchecker.question.OcrContext;
+import com.examchecker.question.QuestionPackage;
+import com.examchecker.question.QuestionPackageFactory;
+import com.examchecker.question.QuestionReference;
+import com.examchecker.question.QuestionType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -29,6 +34,7 @@ public class CheckService {
     private final MathTextNormalizer mathTextNormalizer;
     private final ImageQualityService imageQualityService;
     private final RejectedQuestionImageArchive rejectedQuestionImageArchive;
+    private final QuestionPackageFactory questionPackageFactory;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final OcrConsensusService ocrConsensusService;
 
@@ -38,6 +44,7 @@ public class CheckService {
             MathTextNormalizer mathTextNormalizer,
             ImageQualityService imageQualityService,
             RejectedQuestionImageArchive rejectedQuestionImageArchive,
+            QuestionPackageFactory questionPackageFactory,
             OcrConsensusService ocrConsensusService
     ) {
         this.multiEngineOcrService = multiEngineOcrService;
@@ -45,10 +52,23 @@ public class CheckService {
         this.mathTextNormalizer = mathTextNormalizer;
         this.imageQualityService = imageQualityService;
         this.rejectedQuestionImageArchive = rejectedQuestionImageArchive;
+        this.questionPackageFactory = questionPackageFactory;
         this.ocrConsensusService = ocrConsensusService;
     }
 
     public Map<String, Object> check(MultipartFile file) {
+        return check(
+                file,
+                new QuestionReference("legacy-single-question", 1, "1", ""),
+                new OcrContext("", QuestionType.UNKNOWN, List.of())
+        );
+    }
+
+    public Map<String, Object> check(
+            MultipartFile file,
+            QuestionReference questionReference,
+            OcrContext ocrContext
+    ) {
         try {
             ImageQualityReport imageQualityReport = imageQualityService.analyze(file);
             RejectedQuestionImageArchive.ArchiveResult archiveResult =
@@ -65,12 +85,19 @@ public class CheckService {
                 );
             }
 
+            QuestionPackage questionPackage = questionPackageFactory.create(
+                    file,
+                    questionReference,
+                    ocrContext,
+                    imageQualityReport
+            );
+
             List<OcrEngineResult> engineResults = new ArrayList<>();
 
             OcrEngineResult openAiResult =
                     multiEngineOcrService.extractWithEngine(
                             OcrEngineName.OPENAI,
-                            file
+                            questionPackage
                     );
 
             engineResults.add(openAiResult);
@@ -82,7 +109,7 @@ public class CheckService {
                 OcrEngineResult geminiResult =
                         multiEngineOcrService.extractWithEngine(
                                 OcrEngineName.GEMINI,
-                                file
+                                questionPackage
                         );
                 engineResults.add(geminiResult);
                 geminiAlreadyRun = true;
@@ -131,7 +158,7 @@ public class CheckService {
                 OcrEngineResult geminiResult =
                         multiEngineOcrService.extractWithEngine(
                                 OcrEngineName.GEMINI,
-                                file
+                                questionPackage
                         );
 
                 engineResults.add(geminiResult);
@@ -229,7 +256,9 @@ public class CheckService {
                     Map.entry("imageQualityReport", imageQualityReport),
                     Map.entry("rejectedImageArchive", archiveResult),
                     Map.entry("ocrSkipped", false),
-                    Map.entry("processingStatus", "COMPLETED")
+                    Map.entry("processingStatus", "COMPLETED"),
+                    Map.entry("traceId", questionPackage.traceId().toString()),
+                    Map.entry("questionPackageContractVersion", questionPackage.contractVersion())
             );
 
         } catch (Exception e) {

@@ -1,13 +1,12 @@
 package com.examchecker.infrastructure;
 
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
 @Component
 public class MockOcrService implements OcrService {
 
     @Override
-    public String extractText(MultipartFile file) {
+    public String extractText(byte[] imageContent, String contentType) {
         return "1+1=2";
     }
 }
