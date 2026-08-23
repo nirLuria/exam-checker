@@ -1,11 +1,11 @@
 package com.examchecker.infrastructure.ocr.openai;
 
 import com.examchecker.infrastructure.OcrService;
-import com.examchecker.infrastructure.ocr.core.OcrEngine;
-import com.examchecker.infrastructure.ocr.core.OcrEngineMetadata;
-import com.examchecker.infrastructure.ocr.core.OcrEngineName;
+import com.examchecker.infrastructure.ocr.contract.OcrEngine;
+import com.examchecker.infrastructure.ocr.contract.OcrEngineMetadata;
+import com.examchecker.infrastructure.ocr.contract.OcrEngineName;
 import org.springframework.stereotype.Component;
-import com.examchecker.question.QuestionPackage;
+import com.examchecker.infrastructure.ocr.preparation.QuestionPackage;
 
 @Component
 public class OpenAiOcrEngine implements OcrEngine {
