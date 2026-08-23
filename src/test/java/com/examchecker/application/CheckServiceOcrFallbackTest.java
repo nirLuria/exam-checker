@@ -15,6 +15,7 @@ import com.examchecker.infrastructure.ocr.core.OcrEngineResult;
 import com.examchecker.infrastructure.ocr.core.OcrReading;
 import com.examchecker.infrastructure.ocr.core.OcrResultComparisonService;
 import com.examchecker.infrastructure.ocr.core.SuspiciousCheckResult;
+import com.examchecker.infrastructure.ocr.core.OcrRunMetadata;
 import com.examchecker.service.CanonicalMathNormalizer;
 import com.examchecker.service.MathTextNormalizer;
 import com.examchecker.question.QuestionPackage;
@@ -23,6 +24,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.Map;
+import java.util.List;
+import java.util.UUID;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -126,10 +130,10 @@ class CheckServiceOcrFallbackTest {
     private OcrEngineResult failedOpenAi() {
         return OcrEngineResult.failed(
                 metadata(OcrEngineName.OPENAI),
+                runMetadata(),
                 OcrEngineFailureType.TIMEOUT,
                 "",
-                "timed out",
-                10
+                "timed out"
         );
     }
 
@@ -143,10 +147,23 @@ class CheckServiceOcrFallbackTest {
         );
         return OcrEngineResult.success(
                 metadata(OcrEngineName.GEMINI),
+                runMetadata(),
                 bundle,
                 "raw-gemini-json",
                 null,
-                12
+                null,
+                List.of()
+        );
+    }
+
+    private OcrRunMetadata runMetadata() {
+        Instant timestamp = Instant.parse("2026-08-23T08:00:00Z");
+        return OcrRunMetadata.firstAttempt(
+                UUID.fromString("550e8400-e29b-41d4-a716-446655440000"),
+                UUID.randomUUID(),
+                timestamp,
+                timestamp,
+                10
         );
     }
 

@@ -2,5 +2,7 @@ package com.examchecker.infrastructure.ocr.core;
 
 public enum OcrEngineStatus {
     SUCCESS,
-    FAILED
+    FAILED,
+    TIMEOUT,
+    NOT_APPLICABLE
 }

@@ -116,7 +116,7 @@ public class CheckService {
                 consensus = ocrConsensusService.decide(engineResults);
 
                 if (consensus.selectedBundle() == null) {
-                    throw new RuntimeException("All OCR engines failed: " + consensus.reason());
+                    throw new RuntimeException("No OCR result selected: " + consensus.reason());
                 }
             }
 
@@ -405,6 +405,9 @@ public class CheckService {
             if (result.failed()) {
                 summary.append("FAILED - ")
                         .append(safe(result.failureType()));
+            } else if (result.notApplicable()) {
+                summary.append("NOT_APPLICABLE - ")
+                        .append(safe(result.failureReason()));
             } else {
                 summary.append(safe(result.bundle().primary().rawText()));
             }

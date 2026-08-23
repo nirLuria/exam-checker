@@ -34,7 +34,19 @@ class OcrConsensusServiceTest {
 
         assertTrue(result.needsReview());
         assertNull(result.selectedEngineName());
-        assertEquals("All OCR engines failed", result.reason());
+        assertEquals("All applicable OCR engines failed", result.reason());
+    }
+
+    @Test
+    void allNotApplicableResultsAreDistinguishedFromEngineFailure() {
+        OcrConsensusResult result = service.decide(List.of(
+                OcrTestFixtures.notApplicable(OcrEngineName.GEMINI),
+                OcrTestFixtures.notApplicable(OcrEngineName.QWEN)
+        ));
+
+        assertTrue(result.needsReview());
+        assertNull(result.selectedEngineName());
+        assertEquals("No OCR engine is applicable to this question type", result.reason());
     }
 
     @Test

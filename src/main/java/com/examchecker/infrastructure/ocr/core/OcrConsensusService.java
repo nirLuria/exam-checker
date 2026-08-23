@@ -28,9 +28,14 @@ public class OcrConsensusService {
                 .toList();
 
         if (successfulResults.isEmpty()) {
-            String reason = results.isEmpty()
-                    ? "No OCR engine results available"
-                    : "All OCR engines failed";
+            String reason;
+            if (results.isEmpty()) {
+                reason = "No OCR engine results available";
+            } else if (results.stream().allMatch(OcrEngineResult::notApplicable)) {
+                reason = "No OCR engine is applicable to this question type";
+            } else {
+                reason = "All applicable OCR engines failed";
+            }
             return result(null, results, comparison, true, reason);
         }
 
