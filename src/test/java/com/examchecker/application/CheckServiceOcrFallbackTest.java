@@ -5,22 +5,28 @@ import com.examchecker.image.ImageQualityReport;
 import com.examchecker.image.ImageQualityService;
 import com.examchecker.image.RejectedQuestionImageArchive;
 import com.examchecker.infrastructure.OpenAiClient;
-import com.examchecker.infrastructure.ocr.core.MultiEngineOcrService;
-import com.examchecker.infrastructure.ocr.core.OcrBundleResult;
-import com.examchecker.infrastructure.ocr.core.OcrConsensusService;
-import com.examchecker.infrastructure.ocr.core.OcrEngineFailureType;
-import com.examchecker.infrastructure.ocr.core.OcrEngineMetadata;
-import com.examchecker.infrastructure.ocr.core.OcrEngineName;
-import com.examchecker.infrastructure.ocr.core.OcrEngineResult;
-import com.examchecker.infrastructure.ocr.core.OcrReading;
-import com.examchecker.infrastructure.ocr.core.OcrResultComparisonService;
-import com.examchecker.infrastructure.ocr.core.SuspiciousCheckResult;
+import com.examchecker.infrastructure.ocr.contract.OcrBundleResult;
+import com.examchecker.infrastructure.ocr.contract.OcrEngineFailureType;
+import com.examchecker.infrastructure.ocr.contract.OcrEngineMetadata;
+import com.examchecker.infrastructure.ocr.contract.OcrEngineName;
+import com.examchecker.infrastructure.ocr.contract.OcrEngineResult;
+import com.examchecker.infrastructure.ocr.contract.OcrReading;
+import com.examchecker.infrastructure.ocr.contract.OcrRunMetadata;
+import com.examchecker.infrastructure.ocr.contract.SuspiciousCheckResult;
+import com.examchecker.infrastructure.ocr.decision.OcrConsensusService;
+import com.examchecker.infrastructure.ocr.decision.OcrResultComparisonService;
+import com.examchecker.infrastructure.ocr.execution.MultiEngineOcrService;
 import com.examchecker.service.CanonicalMathNormalizer;
 import com.examchecker.service.MathTextNormalizer;
+import com.examchecker.infrastructure.ocr.preparation.QuestionPackage;
+import com.examchecker.infrastructure.ocr.preparation.QuestionPackageFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.Map;
+import java.util.List;
+import java.util.UUID;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,6 +34,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 class CheckServiceOcrFallbackTest {
 
@@ -37,6 +45,7 @@ class CheckServiceOcrFallbackTest {
         OpenAiClient openAiClient = mock(OpenAiClient.class);
         ImageQualityService imageQualityService = mock(ImageQualityService.class);
         RejectedQuestionImageArchive archive = mock(RejectedQuestionImageArchive.class);
+        QuestionPackageFactory questionPackageFactory = new QuestionPackageFactory();
         OcrConsensusService consensusService = new OcrConsensusService(
                 new OcrResultComparisonService(new CanonicalMathNormalizer())
         );
@@ -46,6 +55,7 @@ class CheckServiceOcrFallbackTest {
                 new MathTextNormalizer(),
                 imageQualityService,
                 archive,
+                questionPackageFactory,
                 consensusService
         );
         MockMultipartFile file = new MockMultipartFile(
@@ -71,6 +81,7 @@ class CheckServiceOcrFallbackTest {
         OpenAiClient openAiClient = mock(OpenAiClient.class);
         ImageQualityService imageQualityService = mock(ImageQualityService.class);
         RejectedQuestionImageArchive archive = mock(RejectedQuestionImageArchive.class);
+        QuestionPackageFactory questionPackageFactory = new QuestionPackageFactory();
         OcrConsensusService consensusService = new OcrConsensusService(
                 new OcrResultComparisonService(new CanonicalMathNormalizer())
         );
@@ -80,6 +91,7 @@ class CheckServiceOcrFallbackTest {
                 new MathTextNormalizer(),
                 imageQualityService,
                 archive,
+                questionPackageFactory,
                 consensusService
         );
         MockMultipartFile file = new MockMultipartFile(
@@ -92,9 +104,9 @@ class CheckServiceOcrFallbackTest {
         when(imageQualityService.analyze(file)).thenReturn(acceptableImageQuality());
         when(archive.archive(file, acceptableImageQuality()))
                 .thenReturn(RejectedQuestionImageArchive.ArchiveResult.notRequired());
-        when(multiEngineOcrService.extractWithEngine(OcrEngineName.OPENAI, file))
+        when(multiEngineOcrService.extractWithEngine(eq(OcrEngineName.OPENAI), any(QuestionPackage.class)))
                 .thenReturn(failedOpenAi());
-        when(multiEngineOcrService.extractWithEngine(OcrEngineName.GEMINI, file))
+        when(multiEngineOcrService.extractWithEngine(eq(OcrEngineName.GEMINI), any(QuestionPackage.class)))
                 .thenReturn(successfulGemini());
         when(openAiClient.analyzeExercise("5+3=8")).thenReturn("""
                 {
@@ -111,17 +123,17 @@ class CheckServiceOcrFallbackTest {
         assertEquals(OcrEngineName.GEMINI, result.get("selectedOcrEngine"));
         assertEquals("ocr-consensus-v1", result.get("ocrConsensusPolicyVersion"));
         assertTrue(Boolean.TRUE.equals(result.get("needsTeacherReview")));
-        verify(multiEngineOcrService).extractWithEngine(OcrEngineName.OPENAI, file);
-        verify(multiEngineOcrService).extractWithEngine(OcrEngineName.GEMINI, file);
+        verify(multiEngineOcrService).extractWithEngine(eq(OcrEngineName.OPENAI), any(QuestionPackage.class));
+        verify(multiEngineOcrService).extractWithEngine(eq(OcrEngineName.GEMINI), any(QuestionPackage.class));
     }
 
     private OcrEngineResult failedOpenAi() {
         return OcrEngineResult.failed(
                 metadata(OcrEngineName.OPENAI),
+                runMetadata(),
                 OcrEngineFailureType.TIMEOUT,
                 "",
-                "timed out",
-                10
+                "timed out"
         );
     }
 
@@ -135,10 +147,23 @@ class CheckServiceOcrFallbackTest {
         );
         return OcrEngineResult.success(
                 metadata(OcrEngineName.GEMINI),
+                runMetadata(),
                 bundle,
                 "raw-gemini-json",
                 null,
-                12
+                null,
+                List.of()
+        );
+    }
+
+    private OcrRunMetadata runMetadata() {
+        Instant timestamp = Instant.parse("2026-08-23T08:00:00Z");
+        return OcrRunMetadata.firstAttempt(
+                UUID.fromString("550e8400-e29b-41d4-a716-446655440000"),
+                UUID.randomUUID(),
+                timestamp,
+                timestamp,
+                10
         );
     }
 

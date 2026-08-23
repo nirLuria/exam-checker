@@ -2,7 +2,6 @@ package com.examchecker.infrastructure;
 
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Base64;
 
@@ -20,14 +19,12 @@ public class OpenAiOcrService implements OcrService {
     }
 
     @Override
-    public String extractText(MultipartFile file) {
+    public String extractText(byte[] imageContent, String contentType) {
 
         try {
 
-            byte[] originalImage = file.getBytes();
-
             ImagePreprocessingService.ProcessedImage processed =
-                    imagePreprocessingService.preprocess(originalImage);
+                    imagePreprocessingService.preprocess(imageContent);
 
             String sharpenedBase64 =
                     Base64.getEncoder()

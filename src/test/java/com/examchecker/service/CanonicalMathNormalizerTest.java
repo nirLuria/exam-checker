@@ -51,7 +51,7 @@ class CanonicalMathNormalizerTest {
         MathNormalizationResult result = normalizer.normalizeWithTrace(" 1. 2 x 3 ÷ 6 ");
 
         assertEquals("2*3/6", result.canonicalText());
-        assertEquals("canonical-math-v1", result.rulesVersion());
+        assertEquals("canonical-math-v2", result.rulesVersion());
         assertEquals(List.of(
                 MathNormalizationRule.TRIM_OUTER_WHITESPACE,
                 MathNormalizationRule.REMOVE_QUESTION_PREFIX,
@@ -67,6 +67,11 @@ class CanonicalMathNormalizerTest {
     }
 
     @Test
+    void doesNotMistakeLeadingDecimalForQuestionPrefix() {
+        assertEquals("12.5+0.25=12.75", normalizer.normalize("12.5+0.25=12.75"));
+    }
+
+    @Test
     void recordsNoRulesWhenTextIsAlreadyCanonical() {
         MathNormalizationResult result = normalizer.normalizeWithTrace("2+3=5");
 
@@ -79,5 +84,63 @@ class CanonicalMathNormalizerTest {
 
         assertEquals("", result.canonicalText());
         assertEquals(List.of(MathNormalizationRule.NULL_TO_EMPTY), result.appliedRules());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"−", "–", "—", "﹣", "－"})
+    void normalizesUnicodeMinusWithoutChangingOperands(String minusSign) {
+        assertEquals("5-3=2", normalizer.normalize("5" + minusSign + "3=2"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"＋", "﹢"})
+    void normalizesUnicodePlus(String plusSign) {
+        assertEquals("2+3=5", normalizer.normalize("2" + plusSign + "3=5"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"＝", "﹦"})
+    void normalizesUnicodeEquals(String equalsSign) {
+        assertEquals("2+3=5", normalizer.normalize("2+3" + equalsSign + "5"));
+    }
+
+    @Test
+    void normalizesUnicodeDigitsAndParentheses() {
+        assertEquals("(12+3)=15", normalizer.normalize("（１２+٣）＝١٥"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"⁄", "∕"})
+    void normalizesUnicodeFractionSlash(String slash) {
+        assertEquals("1/2", normalizer.normalize("1" + slash + "2"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"％", "٪"})
+    void normalizesUnicodePercent(String percentSign) {
+        assertEquals("50%", normalizer.normalize("50" + percentSign));
+    }
+
+    @Test
+    void normalizesUnambiguousElementaryDecimalComma() {
+        assertEquals("12.5+0.25=12.75", normalizer.normalize("12,5 + 0,25 = 12,75"));
+    }
+
+    @Test
+    void preservesThreeDigitCommaBecauseItMayBeThousandsSeparator() {
+        assertEquals("1,000+2", normalizer.normalize("1,000 + 2"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "5−3＝2",
+            "（１２＋٣）＝١٥",
+            "50％",
+            "12,5+0,25=12,75",
+            "1⁄2"
+    })
+    void normalizationIsIdempotent(String input) {
+        String once = normalizer.normalize(input);
+        assertEquals(once, normalizer.normalize(once));
     }
 }
